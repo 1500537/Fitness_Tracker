@@ -1,0 +1,57 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&family=Playfair:ital,opsz,wght@0,5..1200,300..900;1,5..1200,300..900&display=swap');
+
+@import "tailwindcss";
+/* @import "tailwindcss/preflight";
+@tailwind utilities; */
+
+
+@theme {
+  --color-primary: #2563EB
+  --color-secondary: #FBBF24
+}
+/* Global transitions taake Day/Night switch smooth ho */
+@layer base {
+  *, ::after, ::before {
+    transition-property: color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform, filter, backdrop-filter;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 500ms;
+  }
+
+  body {
+    @apply bg-white text-black;
+  }
+
+  :root.dark body {
+    @apply bg-[#0A0A0A] text-white;
+  }
+}
+
+*{
+  font-family: Outfit;
+}
+
+.font-playfair{
+  font-family: Playfair !important;
+}
+
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  overflow-x: hidden;
+  /* Hardware acceleration for smoother animations */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #F5F5F5;
+}
+
+/* Scrollbar ko modern aur minimalistic banayein */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-thumb {
+  background: #FF7222;
+  border-radius: 10px;
+}
