@@ -123,3 +123,65 @@ export const contactData = {
     { name: "LinkedIn", link: "#" }
   ]
 };
+export const eliteData = {
+  workouts: [
+    { id: 1, name: "Sumo Deadlift", sets: 5, reps: 5, weight: "140kg", category: "Strength", tag: "Back", notes: "Focus on hip drive" },
+    { id: 2, name: "HIIT Sprints", sets: 8, reps: "30s", weight: "N/A", category: "Cardio", tag: "Fat Loss", notes: "1 min rest" }
+  ],
+  nutrition: [
+    { id: 1, type: "Breakfast", food: "Oatmeal & Whey", calories: 450, macros: { p: 35, c: 55, f: 10 } },
+    { id: 2, type: "Lunch", food: "Chicken & Quinoa", calories: 650, macros: { p: 50, c: 60, f: 15 } }
+  ],
+  progress: [
+    { date: 'Mon', weight: 80, performance: 70, chest: 105 },
+    { date: 'Wed', weight: 79.5, performance: 85, chest: 105.5 },
+    { date: 'Fri', weight: 79.2, performance: 95, chest: 106 }
+  ]
+};
+
+export const nutritionData = {
+  dailyTarget: { calories: 3000, protein: 220, carbs: 350, fats: 80 },
+  initialMeals: [
+    { id: 1, name: 'Whey Isolate + Oats', protein: 40, carbs: 55, fats: 8, time: '08:00 AM', type: 'Breakfast' },
+    { id: 2, name: 'Grilled Chicken & Quinoa', protein: 55, carbs: 45, fats: 12, time: '01:30 PM', type: 'Lunch' },
+  ]
+};
+export const progressAsset = {
+  initialHistory: [
+    { id: 1, date: '01/12', weight: 85, bench: 100, run: 15, waist: 34, score: 72 },
+    { id: 2, date: '15/12', weight: 83, bench: 105, run: 14, waist: 33, score: 78 },
+    { id: 3, date: '30/12', weight: 81, bench: 110, run: 12, waist: 32, score: 85 },
+  ],
+  radarLabels: [
+    { key: 'bench', label: 'STRENGTH' },
+    { key: 'run', label: 'SPEED' },
+    { key: 'weight', label: 'LEAN' },
+    { key: 'waist', label: 'CORE' },
+    { key: 'score', label: 'VITALITY' }
+  ]
+};
+export const dashboardData = {
+  tabs: [
+    { id: 'Workouts', icon: '🔥' },
+    { id: 'Nutrition', icon: '🥗' },
+    { id: 'Progress', icon: '📈' }
+  ],
+  stats: [
+    { label: 'Neural Status', val: 'Active', color: 'text-emerald-400' },
+    { label: 'Load Factor', val: '82%', color: 'text-orange-500' },
+    { label: 'Sync Rate', val: '0.01ms', color: 'text-blue-400' },
+    { label: 'Core Temp', val: 'Normal', color: 'text-white' }
+  ]
+};
+export const progressAssets = {
+  initialHistory: [
+    { id: 1, date: '01/12/2025', weight: 85, bench: 100, run: 15, waist: 34, volume: 4500, bf: 22 },
+    { id: 2, date: '15/12/2025', weight: 83, bench: 105, run: 14, waist: 33, volume: 4800, bf: 20 },
+    { id: 3, date: '30/12/2025', weight: 81, bench: 110, run: 12, waist: 32, volume: 5200, bf: 18 },
+  ],
+  analyticsTheme: {
+    primary: '#FF7222',
+    secondary: '#3b82f6',
+    bg: '#020202'
+  }
+};
