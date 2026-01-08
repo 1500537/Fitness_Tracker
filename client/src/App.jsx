@@ -2,11 +2,13 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 
-// Landing Page Components (Single Page Scroll)
-// Iske andar About, Pricing, Contact sections hone chahiye
-import Home from './pages/Home'
+// Landing Page Components
+import Home from './pages/Home';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
+
+// Auth Component (New)
+ // Make sure path is correct
 
 // Dashboard Components
 import DashboardLayout from './components/fitnessTrackingDashboard/DashboardLayout';
@@ -14,6 +16,7 @@ import Dashboard from './pages/fitnessTrackingDashboard/Dashboard';
 import WorkoutModule from './components/fitnessTrackingDashboard/Workout';
 import NutritionModule from './components/fitnessTrackingDashboard/Nutrition';
 import ProgressModule from './components/fitnessTrackingDashboard/Progress';
+import Auth from './components/homepage/Auth';
 
 // 3D Page Transition Wrapper
 const PageWrapper = ({ children }) => (
@@ -30,23 +33,25 @@ const PageWrapper = ({ children }) => (
 const AnimatedRoutes = () => {
   const location = useLocation();
   const isDashboard = location.pathname.startsWith('/dashboard');
+  
+  // Auth page par Navbar aur Footer hide karne ke liye logic
+  const isAuthPage = location.pathname === '/auth';
 
   return (
     <>
-      {/* Navbar hamesha dikhega but iske links toggle honge */}
-      {!isDashboard && <Navbar />}
+      {/* Navbar tab dikhega jab na dashboard ho na hi auth page */}
+      {!isDashboard && !isAuthPage && <Navbar />}
 
       <AnimatePresence mode="wait">
         <Routes location={location} key={location.pathname}>
           
-          {/* 1. LANDING PAGE (All-in-One Scroll) */}
+          {/* 1. LANDING PAGE */}
           <Route path="/" element={<PageWrapper><Home /></PageWrapper>} />
 
-          {/* Note: Agar aapko About/Pricing ke alag PAGES chahiye toh niche wali lines rehne dein.
-             Lekin agar Home par hi scroll karwana hai, toh in routes ki zaroorat nahi.
-          */}
+          {/* 2. AUTHENTICATION GATEWAY (New Route) */}
+          <Route path="/auth" element={<PageWrapper><Auth /></PageWrapper>} />
 
-          {/* 2. ELITE DASHBOARD SECTION */}
+          {/* 3. ELITE DASHBOARD SECTION */}
           <Route path="/dashboard" element={<DashboardLayout />}>
             <Route index element={<PageWrapper><Dashboard /></PageWrapper>} />
             <Route path="workouts" element={<PageWrapper><WorkoutModule /></PageWrapper>} />
@@ -57,7 +62,8 @@ const AnimatedRoutes = () => {
         </Routes>
       </AnimatePresence>
 
-      {!isDashboard && <Footer />}
+      {/* Footer tab dikhega jab na dashboard ho na hi auth page */}
+      {!isDashboard && !isAuthPage && <Footer />}
     </>
   );
 };
