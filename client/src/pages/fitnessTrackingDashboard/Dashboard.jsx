@@ -1,130 +1,219 @@
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { dashboardData } from '../../assets/assets';
-import WorkoutModule from '../../components/fitnessTrackingDashboard/Workout';
-import NutritionModule from '../../components/fitnessTrackingDashboard/Nutrition';
-import ProgressModule from '../../components/fitnessTrackingDashboard/Progress';
+import { motion, AnimatePresence, useMotionValue, useSpring, useTransform } from 'framer-motion';
+import { eliteData, dashboardData, progressAssets, nutritionData } from '../../assets/assets';
 
+// --- 1. 3D SPATIAL WRAPPER (Tilt Effect) ---
+const SpatialCard = ({ children, className }) => {
+  const x = useMotionValue(0);
+  const y = useMotionValue(0);
+  const mouseXSpring = useSpring(x);
+  const mouseYSpring = useSpring(y);
+  const rotateX = useTransform(mouseYSpring, [-0.5, 0.5], ["10deg", "-10deg"]);
+  const rotateY = useTransform(mouseXSpring, [-0.5, 0.5], ["-10deg", "10deg"]);
 
-const Dashboard = () => {
-  const [activeTab, setActiveTab] = useState('Workouts');
+  const handleMove = (e) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    x.set((e.clientX - rect.left) / rect.width - 0.5);
+    y.set((e.clientY - rect.top) / rect.height - 0.5);
+  };
 
   return (
-    <div className="min-h-screen bg-[#020202] text-white selection:bg-[#FF7222] selection:text-black overflow-x-hidden relative pb-10">
+    <motion.div
+      onMouseMove={handleMove}
+      onMouseLeave={() => { x.set(0); y.set(0); }}
+      style={{ rotateX, rotateY, transformStyle: "preserve-3d" }}
+      className={`${className} transition-shadow duration-500`}
+    >
+      <div style={{ transform: "translateZ(60px)" }}>{children}</div>
+    </motion.div>
+  );
+};
+
+// --- 2. HOLOGRAPHIC 3D GRAPH ---
+const HolographicGraph = () => {
+  const [activeBar, setActiveBar] = useState(null);
+
+  return (
+    <div className="relative h-[450px] w-full bg-white/[0.02] border border-white/5 rounded-[4rem] p-12 overflow-hidden shadow-2xl">
+      <div className="absolute inset-0 bg-[linear-gradient(rgba(255,114,34,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(255,114,34,0.05)_1px,transparent_1px)] bg-[size:40px_40px] [mask-image:radial-gradient(ellipse_at_center,black,transparent)]" />
       
-      {/* --- LAYER 0: HOLOGRAPHIC BACKGROUND FX --- */}
-      <div className="fixed inset-0 z-0 pointer-events-none">
-        <div className="absolute top-[-10%] left-[-10%] w-[60vw] h-[60vw] bg-[#FF7222]/5 blur-[120px] rounded-full" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[50vw] h-[50vw] bg-blue-600/5 blur-[120px] rounded-full" />
-        <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-[0.02]" />
+      <div className="relative z-10 flex justify-between items-start mb-16">
+        <div>
+          <h3 className="text-4xl font-[1000] italic uppercase tracking-tighter">Neural <span className="text-[#FF7222]">Pulse</span></h3>
+          <p className="text-[10px] font-black text-gray-500 uppercase tracking-[0.5em] mt-2 italic">Protocol_v4: Data_Flow_Active</p>
+        </div>
+        <div className="flex gap-4">
+            <div className="text-right">
+                <p className="text-[8px] font-black text-gray-500 uppercase italic">Peak Load</p>
+                <p className="text-xl font-black text-[#FF7222]">95.4%</p>
+            </div>
+        </div>
       </div>
 
-      <div className="relative z-10 w-full max-w-[1800px] mx-auto px-4 sm:px-8 lg:px-12 pt-8 md:pt-16">
+      <div className="relative h-64 flex items-end justify-between gap-4 md:gap-10">
+        {eliteData.progress.map((item, i) => (
+          <div key={i} className="flex-1 flex flex-col items-center group/bar" onMouseEnter={() => setActiveBar(i)} onMouseLeave={() => setActiveBar(null)}>
+            <AnimatePresence>
+              {activeBar === i && (
+                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: -20 }} exit={{ opacity: 0, y: 10 }} className="absolute -top-12 z-20 bg-white text-black px-4 py-2 rounded-xl font-black italic text-[10px] shadow-[0_0_30px_rgba(255,255,255,0.3)]">
+                  {item.performance}% DATA_SYNC
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            <motion.div
+              initial={{ height: 0 }}
+              animate={{ height: `${item.performance}%` }}
+              transition={{ duration: 1.5, delay: i * 0.1, ease: "circOut" }}
+              className={`w-full max-w-[50px] relative rounded-t-2xl transition-all duration-500 ${activeBar === i ? 'bg-[#FF7222] shadow-[0_0_50px_rgba(255,114,34,0.4)]' : 'bg-white/10'}`}
+              style={{ transformStyle: 'preserve-3d' }}
+            >
+              <div className="absolute inset-0 bg-gradient-to-t from-transparent to-white/10 rounded-t-2xl" />
+              <motion.div animate={{ top: ["0%", "100%"] }} transition={{ duration: 2, repeat: Infinity }} className="absolute w-full h-[2px] bg-white/40 blur-sm" />
+            </motion.div>
+            <span className={`mt-6 text-[10px] font-black uppercase italic transition-colors ${activeBar === i ? 'text-white' : 'text-gray-600'}`}>{item.date}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// --- MAIN COMMAND DASHBOARD ---
+const EliteDashboard = () => {
+  return (
+    <div className="min-h-screen bg-[#020202] text-white p-6 md:p-16 relative overflow-hidden font-['Outfit']">
+      
+      {/* BACKGROUND ELEMENTS */}
+      <div className="fixed inset-0 pointer-events-none">
+        <div className="absolute top-[-20%] left-[-10%] w-[70vw] h-[70vw] bg-[#FF7222]/10 blur-[180px] rounded-full animate-pulse" />
+        <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/asfalt-dark.png')] opacity-20" />
+      </div>
+
+      <div className="max-w-[1700px] mx-auto relative z-10">
         
-        {/* --- HEADER: EXTREME TYPOGRAPHY (RESPONSIVE CLAMP) --- */}
-        <header className="flex flex-col xl:flex-row justify-between items-start xl:items-end gap-10 mb-16 md:mb-24">
-          <motion.div 
-            initial={{ x: -100, opacity: 0 }} 
-            animate={{ x: 0, opacity: 1 }}
-            className="border-l-4 md:border-l-8 border-[#FF7222] pl-6 md:pl-10"
-          >
-            <p className="text-[10px] md:text-xs font-black uppercase tracking-[0.6em] text-[#FF7222] mb-4">Neural Link Established</p>
-            <h1 className="text-[clamp(3rem,10vw,10rem)] font-[1000] italic leading-[0.8] tracking-[ -0.05em] uppercase">
-              PULSE<br />
-              <span className="text-transparent stroke-text italic">ELITE</span>
+        {/* TOP STATUS BAR */}
+        <header className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-10 mb-20">
+          <motion.div initial={{ x: -100, opacity: 0 }} animate={{ x: 0, opacity: 1 }}>
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-12 h-[2px] bg-[#FF7222]" />
+              <span className="text-xs font-black uppercase tracking-[0.8em] text-[#FF7222]">Security_Override: Active</span>
+            </div>
+            <h1 className="text-8xl md:text-[11rem] font-[1000] italic leading-[0.75] tracking-tighter uppercase">
+              COMMAND<br /><span className="text-transparent stroke-text">CENTER</span>
             </h1>
           </motion.div>
 
-          {/* --- TAB NAV: 3D SLIDER --- */}
-          <nav className="w-full xl:w-auto bg-white/5 backdrop-blur-3xl p-2 rounded-3xl md:rounded-[3rem] border border-white/10 flex items-center justify-between gap-2 overflow-x-auto no-scrollbar">
-            {dashboardData.tabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`relative px-6 md:px-12 py-4 md:py-6 rounded-2xl md:rounded-[2.5rem] text-[10px] md:text-xs font-black uppercase tracking-widest transition-all duration-500 whitespace-nowrap
-                ${activeTab === tab.id ? 'text-black' : 'text-gray-500 hover:text-white'}`}
-              >
-                {activeTab === tab.id && (
-                  <motion.div 
-                    layoutId="activeTabGlow"
-                    className="absolute inset-0 bg-[#FF7222] rounded-2xl md:rounded-[2.5rem] shadow-[0_0_40px_rgba(255,114,34,0.6)]"
-                    transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-                  />
-                )}
-                <span className="relative z-10 flex items-center gap-3">
-                  <span className="hidden sm:inline">{tab.icon}</span> {tab.id}
-                </span>
-              </button>
-            ))}
-          </nav>
+          <SpatialCard className="bg-white/5 border border-white/10 p-10 rounded-[3.5rem] backdrop-blur-3xl flex items-center gap-8 min-w-[350px]">
+            <div className="relative">
+              <motion.div animate={{ rotate: 360 }} transition={{ duration: 15, repeat: Infinity, ease: "linear" }} className="absolute -inset-4 border border-dashed border-[#FF7222]/40 rounded-full" />
+              <div className="w-20 h-20 bg-[#FF7222] rounded-full flex items-center justify-center shadow-[0_0_40px_rgba(255,114,34,0.4)]">
+                <span className="text-black text-3xl font-black italic">!</span>
+              </div>
+            </div>
+            <div>
+              <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">Weekly Growth</p>
+              <h4 className="text-4xl font-[1000] italic text-white">+12.4%</h4>
+              <p className="text-[8px] font-bold text-green-500 uppercase mt-2">Elite Status Confirmed</p>
+            </div>
+          </SpatialCard>
         </header>
 
-        {/* --- STATUS BAR: SMART ADAPTIVE GRID --- */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-12 md:mb-20">
-          {dashboardData.stats.map((stat, i) => (
-            <motion.div 
-              key={i}
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.1 }}
-              whileHover={{ scale: 1.05, translateZ: 20 }}
-              className="bg-white/[0.03] border border-white/10 p-5 md:p-8 rounded-[2rem] md:rounded-[2.5rem] backdrop-blur-2xl hover:bg-white/5 transition-all"
-            >
-              <p className="text-[8px] md:text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2 italic">{stat.label}</p>
-              <div className="flex items-center gap-3">
-                <div className={`w-2 h-2 rounded-full animate-ping ${stat.color === 'text-white' ? 'bg-white' : stat.color.replace('text', 'bg')}`} />
-                <h4 className={`text-lg md:text-2xl font-[1000] italic uppercase ${stat.color}`}>{stat.val}</h4>
-              </div>
-            </motion.div>
-          ))}
-        </div>
+        {/* DASHBOARD GRID */}
+        <div className="grid grid-cols-1 xl:grid-cols-12 gap-10">
+          
+          {/* LEFT COLUMN (The Core) */}
+          <div className="xl:col-span-8 space-y-10">
+            <HolographicGraph />
 
-        {/* --- MAIN PORTAL: THE 3D VIEWPORT --- */}
-        <div className="relative group perspective-3000">
-          {/* Decorative Corner Accents (Scaling with UI) */}
-          <div className="absolute -top-6 -left-6 md:-top-10 md:-left-10 w-24 h-24 border-t-4 border-l-4 border-[#FF7222] rounded-tl-[3rem] opacity-30 group-hover:opacity-100 transition-opacity" />
-          <div className="absolute -bottom-6 -right-6 md:-bottom-10 md:-right-10 w-24 h-24 border-b-4 border-r-4 border-[#FF7222] rounded-br-[3rem] opacity-30 group-hover:opacity-100 transition-opacity" />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+              <SpatialCard className="bg-gradient-to-br from-[#FF7222] to-[#e6651d] p-10 rounded-[4rem] text-black relative overflow-hidden group">
+                <div className="relative z-10">
+                  <h4 className="text-4xl font-[1000] italic uppercase leading-[0.8] mb-6">Fueling<br />Report</h4>
+                  <div className="space-y-4">
+                    {nutritionData.initialMeals.map((meal, i) => (
+                      <div key={i} className="flex justify-between border-b border-black/10 pb-2">
+                        <span className="text-xs font-black uppercase italic">{meal.name}</span>
+                        <span className="text-xs font-bold">{meal.protein}g P</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="absolute -right-10 -bottom-10 text-[15rem] font-black italic opacity-10 pointer-events-none">BIO</div>
+              </SpatialCard>
 
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={activeTab}
-              initial={{ opacity: 0, rotateY: 15, scale: 0.9, filter: 'blur(20px)' }}
-              animate={{ opacity: 1, rotateY: 0, scale: 1, filter: 'blur(0px)' }}
-              exit={{ opacity: 0, rotateY: -15, scale: 1.1, filter: 'blur(20px)' }}
-              transition={{ duration: 0.7, ease: [0.19, 1, 0.22, 1] }}
-              className="relative z-10 w-full"
-            >
-              <div className="w-full">
-                {activeTab === 'Workouts' && <WorkoutModule />}
-                {activeTab === 'Nutrition' && <NutritionModule />}
-                {activeTab === 'Progress' && <ProgressModule />}
-              </div>
-            </motion.div>
-          </AnimatePresence>
+              <SpatialCard className="bg-white/5 border border-white/10 p-10 rounded-[4rem] flex flex-col justify-between">
+                <div>
+                  <h4 className="text-[10px] font-black text-gray-500 uppercase tracking-[0.4em] mb-6 italic">Target_Database</h4>
+                  <div className="flex flex-wrap gap-3">
+                    {eliteData.exerciseLibrary.Strength.map((ex, i) => (
+                      <span key={i} className="px-4 py-2 bg-white/5 rounded-full text-[9px] font-black uppercase italic border border-white/10 hover:bg-[#FF7222] hover:text-black transition-all cursor-crosshair">
+                        {ex}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <div className="mt-8 pt-8 border-t border-white/5 flex items-center justify-between">
+                  <span className="text-[9px] font-black text-[#FF7222] uppercase tracking-widest">Load Status: Heavy</span>
+                  <div className="w-12 h-1 bg-white/10 rounded-full overflow-hidden">
+                    <motion.div animate={{ width: "85%" }} className="h-full bg-[#FF7222]" />
+                  </div>
+                </div>
+              </SpatialCard>
+            </div>
+          </div>
+
+          {/* RIGHT COLUMN (The Analytics) */}
+          <div className="xl:col-span-4 space-y-10">
+            <SpatialCard className="bg-white/[0.02] border border-white/5 p-12 rounded-[4rem] relative overflow-hidden">
+               <div className="flex justify-between items-start mb-10">
+                  <h4 className="text-xl font-[1000] italic uppercase">Vital<br />History</h4>
+                  <span className="text-[9px] font-black text-gray-500">v4.0.1</span>
+               </div>
+               <div className="space-y-8">
+                  {progressAssets.initialHistory.map((h, i) => (
+                    <div key={i} className="flex items-center gap-6 group cursor-pointer">
+                      <div className="w-14 h-14 bg-white/5 rounded-2xl flex items-center justify-center font-black italic text-xs group-hover:bg-[#FF7222] group-hover:text-black transition-all">
+                        {h.id}
+                      </div>
+                      <div>
+                        <p className="text-[9px] font-black text-[#FF7222] uppercase">{h.date}</p>
+                        <h5 className="text-lg font-[1000] italic uppercase text-white/80 group-hover:text-white">Bench: {h.bench}KG</h5>
+                        <p className="text-[9px] font-bold text-gray-500 italic mt-1 uppercase">Volume_Scan: {h.volume}</p>
+                      </div>
+                    </div>
+                  ))}
+               </div>
+            </SpatialCard>
+
+            <SpatialCard className="bg-white/5 border border-white/10 p-12 rounded-[4rem] text-center relative group">
+               <motion.div 
+                 animate={{ scale: [1, 1.05, 1], rotate: [0, 2, 0] }} 
+                 transition={{ repeat: Infinity, duration: 4 }}
+                 className="text-7xl mb-6 opacity-40 group-hover:opacity-100 group-hover:text-[#FF7222] transition-all"
+               >
+                 ☢️
+               </motion.div>
+               <h4 className="text-2xl font-[1000] italic uppercase mb-2 tracking-tighter">System Health</h4>
+               <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest leading-relaxed">
+                 All neural pathways are synchronized.<br />Recovery protocol: <span className="text-[#FF7222]">Enabled</span>
+               </p>
+               <button className="w-full mt-10 py-5 bg-white/5 border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-[0.4em] hover:bg-white hover:text-black transition-all">
+                  Request_Full_Dump
+               </button>
+            </SpatialCard>
+          </div>
+
         </div>
       </div>
 
-      {/* --- GLOBAL STYLES --- */}
       <style jsx global>{`
         @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@100;400;900&display=swap');
-        
-        body { font-family: 'Outfit', sans-serif; }
-        .stroke-text { -webkit-text-stroke: 1.5px rgba(255,255,255,0.2); }
-        @media (max-width: 768px) { .stroke-text { -webkit-text-stroke: 1px rgba(255,255,255,0.2); } }
-        
-        .perspective-3000 { perspective: 3000px; }
-        .no-scrollbar::-webkit-scrollbar { display: none; }
-        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-
-        /* Smooth Card Animations */
-        .glass-card {
-          background: rgba(255, 255, 255, 0.02);
-          backdrop-filter: blur(20px);
-          border: 1px solid rgba(255, 255, 255, 0.05);
-        }
+        .stroke-text { -webkit-text-stroke: 1.5px rgba(255,255,255,0.1); }
+        body { font-family: 'Outfit', sans-serif; background: #020202; }
       `}</style>
     </div>
   );
 };
 
-export default Dashboard;
+export default EliteDashboard;

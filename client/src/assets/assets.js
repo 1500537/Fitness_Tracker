@@ -124,10 +124,17 @@ export const contactData = {
   ]
 };
 export const eliteData = {
+
   workouts: [
-    { id: 1, name: "Sumo Deadlift", sets: 5, reps: 5, weight: "140kg", category: "Strength", tag: "Back", notes: "Focus on hip drive" },
+    { id: 1, name: "Sumo Deadlift", sets: 5, reps: 5, weight: 140, category: "Strength", tag: "Back", notes: "Focus on hip drive" },
     { id: 2, name: "HIIT Sprints", sets: 8, reps: "30s", weight: "N/A", category: "Cardio", tag: "Fat Loss", notes: "1 min rest" }
   ],
+  exerciseLibrary: {
+    Strength: ["Bench Press", "Sumo Deadlift", "Squats", "Overhead Press", "Barbell Row"],
+    Cardio: ["HIIT Sprints", "Rowing", "Cycling", "Jump Rope", "Treadmill"],
+    Mobility: ["Deep Squat Hold", "Cat-Cow", "Shoulder Dislocates", "Pigeon Pose"],
+    Endurance: ["Long Distance Run", "Swimming", "Burpees", "Mountain Climbers"]
+  },
   nutrition: [
     { id: 1, type: "Breakfast", food: "Oatmeal & Whey", calories: 450, macros: { p: 35, c: 55, f: 10 } },
     { id: 2, type: "Lunch", food: "Chicken & Quinoa", calories: 650, macros: { p: 50, c: 60, f: 15 } }
