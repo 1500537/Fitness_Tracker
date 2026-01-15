@@ -4,6 +4,8 @@ import cors from "cors";
 import connectDB from "./configs/db.js";
 import { clerkMiddleware } from '@clerk/express'
 import clerkWebhooks from "./controllers/clerkWebhooks.js";
+import workoutRoutes from "./routes/workoutRoutes.js";
+import nutritionRoutes from "./routes/nutritionRoutes.js";
 
 connectDB()
 
@@ -18,6 +20,12 @@ app.use(clerkMiddleware())
 
 // API to listen to Clerk Webhooks
 app.use('/api/clerk', clerkWebhooks);
+
+// Workout routes
+app.use('/api/workouts', workoutRoutes);
+
+// Nutrition routes
+app.use('/api/nutrition', nutritionRoutes);
 
 app.get('/', (req, res) => res.send("API is working..."))
 

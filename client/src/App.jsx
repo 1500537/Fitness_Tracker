@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 
 // Landing Page Components
@@ -16,7 +16,12 @@ import Dashboard from './pages/fitnessTrackingDashboard/Dashboard';
 import WorkoutModule from './components/fitnessTrackingDashboard/Workout';
 import NutritionModule from './components/fitnessTrackingDashboard/Nutrition';
 import ProgressModule from './components/fitnessTrackingDashboard/Progress';
-import Auth from './components/homepage/Auth';
+
+// Context
+import { AppProvider } from './context/useAppContext';
+
+// Clerk Auth
+import { useAuth } from '@clerk/clerk-react';
 
 // 3D Page Transition Wrapper
 const PageWrapper = ({ children }) => (
@@ -32,15 +37,28 @@ const PageWrapper = ({ children }) => (
 
 const AnimatedRoutes = () => {
   const location = useLocation();
+  const { userId, isLoaded } = useAuth();
+  
   const isDashboard = location.pathname.startsWith('/dashboard');
   
-  // Auth page par Navbar aur Footer hide karne ke liye logic
-  const isAuthPage = location.pathname === '/auth';
+  // Show loading until authentication is determined
+  if (!isLoaded) {
+    return (
+      <div className="min-h-screen bg-[#050505] flex items-center justify-center">
+        <div className="text-white text-xl">Loading...</div>
+      </div>
+    );
+  }
+  
+  // If trying to access dashboard without authentication, redirect to homepage
+  if (isDashboard && !userId) {
+    return <Navigate to="/" state={{ from: location }} replace />;
+  }
 
   return (
     <>
-      {/* Navbar tab dikhega jab na dashboard ho na hi auth page */}
-      {!isDashboard && !isAuthPage && <Navbar />}
+      {/* Navbar tab dikhega jab dashboard na ho */}
+      {!isDashboard && <Navbar />}
 
       <AnimatePresence mode="wait">
         <Routes location={location} key={location.pathname}>
@@ -48,10 +66,7 @@ const AnimatedRoutes = () => {
           {/* 1. LANDING PAGE */}
           <Route path="/" element={<PageWrapper><Home /></PageWrapper>} />
 
-          {/* 2. AUTHENTICATION GATEWAY (New Route) */}
-          <Route path="/auth" element={<PageWrapper><Auth /></PageWrapper>} />
-
-          {/* 3. ELITE DASHBOARD SECTION */}
+          {/* 2. ELITE DASHBOARD SECTION */}
           <Route path="/dashboard" element={<DashboardLayout />}>
             <Route index element={<PageWrapper><Dashboard /></PageWrapper>} />
             <Route path="workouts" element={<PageWrapper><WorkoutModule /></PageWrapper>} />
@@ -62,19 +77,21 @@ const AnimatedRoutes = () => {
         </Routes>
       </AnimatePresence>
 
-      {/* Footer tab dikhega jab na dashboard ho na hi auth page */}
-      {!isDashboard && !isAuthPage && <Footer />}
+      {/* Footer tab dikhega jab dashboard na ho */}
+      {!isDashboard && <Footer />}
     </>
   );
 };
 
 const App = () => {
   return (
-    <Router>
-      <div className="bg-[#050505] min-h-screen text-white overflow-x-hidden">
-        <AnimatedRoutes />
-      </div>
-    </Router>
+    <AppProvider>
+      <Router>
+        <div className="bg-[#050505] min-h-screen text-white overflow-x-hidden">
+          <AnimatedRoutes />
+        </div>
+      </Router>
+    </AppProvider>
   );
 };
 

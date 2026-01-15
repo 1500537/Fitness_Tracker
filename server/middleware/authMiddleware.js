@@ -1,4 +1,4 @@
-import User from "../models/userModel.js";
+import User from "../models/userModal.js";
 export const protect = async (req, res, next) => { 
     try {
         const authData = req.auth; // Agar @clerk/express hai to req.auth kafi hai
@@ -19,3 +19,5 @@ export const protect = async (req, res, next) => {
         res.json({ success: false, message: error.message });
     }
 }
+
+export default  protect ;

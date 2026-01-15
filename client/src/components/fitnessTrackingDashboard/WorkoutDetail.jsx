@@ -29,8 +29,10 @@ const WorkoutDetail = ({ workout, onClose, onFinish }) => {
   }, [isResting, restTimer, isLiveEditing, isFinished]);
 
   useEffect(() => {
-    if (isResting && restTimer === 0) setIsResting(false);
-  }, [restTimer, isResting]);
+    if (isResting && restTimer === 0) {
+      setIsResting(false);
+    }
+  }, [restTimer]);
 
   const handleAction = () => {
     if (isResting) {
@@ -43,7 +45,7 @@ const WorkoutDetail = ({ workout, onClose, onFinish }) => {
       } else {
         setIsFinished(true); // Trigger Success Animation
         setTimeout(() => {
-          onFinish(workout.id);
+          onFinish(workout._id, seconds);
         }, 3500); // 3.5 seconds of glory
       }
     }

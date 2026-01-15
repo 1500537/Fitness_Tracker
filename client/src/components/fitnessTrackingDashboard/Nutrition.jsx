@@ -1,38 +1,55 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence, useMotionValue, useSpring, useTransform } from 'framer-motion';
+import { Radar, RadarChart, PolarGrid, PolarAngleAxis, ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
+import { useAppContext } from '../../context/useAppContext';
 
-// --- CUSTOM 3D BLADE NOTIFICATION ---
+// --- 1. ENHANCED 3D BIOMETRIC LOADER ---
+const BiometricLoader = () => (
+  <div className="fixed inset-0 z-[2000] flex flex-col items-center justify-center bg-black backdrop-blur-3xl">
+    <div className="relative w-72 h-72 flex items-center justify-center">
+      <motion.div
+        animate={{ rotate: 360, rotateX: [60, 45, 60], scale: [1, 1.1, 1] }}
+        transition={{ duration: 6, repeat: Infinity, ease: "linear" }}
+        className="absolute inset-0 border-t-2 border-b-2 border-[#FF7222] rounded-full shadow-[0_0_60px_rgba(255,114,34,0.3)]"
+      />
+      <motion.div
+        animate={{ y: [-80, 80, -80] }}
+        transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+        className="w-full h-[1px] bg-gradient-to-r from-transparent via-[#FF7222] to-transparent z-10 shadow-[0_0_20px_#FF7222]"
+      />
+      <div className="text-center z-20">
+        <p className="text-[#FF7222] font-[1000] italic tracking-[0.5em] uppercase text-[10px] animate-pulse">Syncing AI Nutrition Core</p>
+      </div>
+    </div>
+  </div>
+);
+
 const TacticalBlade = ({ message, type, isVisible }) => (
   <AnimatePresence>
     {isVisible && (
       <motion.div
-        initial={{ x: 300, opacity: 0, rotateY: 90, skewX: -20 }}
-        animate={{ x: 0, opacity: 1, rotateY: 0, skewX: 0 }}
-        exit={{ x: 300, opacity: 0, filter: 'blur(20px)' }}
-        className={`fixed top-20 right-10 z-[1000] p-1 rounded-br-[3rem] border-r-8 shadow-[0_30px_60px_rgba(0,0,0,0.5)] backdrop-blur-3xl bg-gradient-to-r ${
-          type === 'success' ? 'from-emerald-500/20 to-emerald-900/40 border-emerald-500 text-emerald-400' :
-          'from-red-500/20 to-red-900/40 border-red-500 text-red-400'
+        initial={{ x: 300, opacity: 0, skewX: -20 }}
+        animate={{ x: 0, opacity: 1, skewX: 0 }}
+        exit={{ x: 300, opacity: 0 }}
+        className={`fixed top-10 right-10 z-[1000] p-[2px] rounded-br-[2rem] bg-gradient-to-r ${
+          type === 'success' ? 'from-emerald-500 to-transparent' : 'from-red-500 to-transparent'
         }`}
       >
-        <div className="flex items-center gap-6 px-8 py-6">
-          <div className="text-4xl font-[1000] italic animate-pulse">{type === 'success' ? '⚡' : '⚠'}</div>
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.4em] opacity-50 italic">Neural Log Update</p>
-            <p className="text-2xl font-[1000] italic uppercase tracking-tighter">{message}</p>
-          </div>
+        <div className="bg-black/90 backdrop-blur-2xl px-8 py-4 rounded-br-[2rem] flex items-center gap-4 border-l-4 border-white/20">
+          <span className="text-2xl">{type === 'success' ? '⚡' : '⚠'}</span>
+          <p className="text-lg font-[1000] italic uppercase tracking-tighter">{message}</p>
         </div>
       </motion.div>
     )}
   </AnimatePresence>
 );
 
-// --- 3D INTERACTIVE WRAPPER ---
 const Interactive3D = ({ children, className }) => {
   const x = useMotionValue(0); const y = useMotionValue(0);
   const mX = useSpring(x, { stiffness: 100, damping: 20 });
   const mY = useSpring(y, { stiffness: 100, damping: 20 });
-  const rotateX = useTransform(mY, [-0.5, 0.5], ["15deg", "-15deg"]);
-  const rotateY = useTransform(mX, [-0.5, 0.5], ["-15deg", "15deg"]);
+  const rotateX = useTransform(mY, [-0.5, 0.5], ["10deg", "-10deg"]);
+  const rotateY = useTransform(mX, [-0.5, 0.5], ["-10deg", "10deg"]);
 
   return (
     <motion.div
@@ -49,164 +66,249 @@ const Interactive3D = ({ children, className }) => {
 };
 
 const NutritionModule = () => {
-  const [meals, setMeals] = useState([
-    { id: 1, name: 'Whey Isolate + Oats', calories: 450, protein: 40, carbs: 55, fats: 8, time: '08:00 AM', type: 'Breakfast' },
-    { id: 2, name: 'Grilled Chicken & Quinoa', calories: 650, protein: 55, carbs: 45, fats: 12, time: '01:30 PM', type: 'Lunch' },
-  ]);
-
+  const { nutrition, nutritionStats, loading, addNutritionEntry, deleteNutritionEntry, fetchNutrition, fetchNutritionStats } = useAppContext();
   const [form, setForm] = useState({ name: '', protein: '', carbs: '', fats: '', type: 'Breakfast' });
   const [notif, setNotif] = useState({ show: false, msg: '', type: '' });
+
+  useEffect(() => { fetchNutrition(); fetchNutritionStats(); }, []);
 
   const trigger = (msg, type) => {
     setNotif({ show: true, msg, type });
     setTimeout(() => setNotif(p => ({ ...p, show: false })), 3000);
   };
 
-  const addMeal = () => {
-    if (!form.name || !form.protein) return trigger("Invalid Credentials", "error");
-    const cal = (Number(form.protein) * 4) + (Number(form.carbs) * 4) + (Number(form.fats) * 9);
-    setMeals([{ ...form, id: Date.now(), calories: cal, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }, ...meals]);
-    setForm({ name: '', protein: '', carbs: '', fats: '', type: 'Breakfast' });
-    trigger("Fuel Cell Deployed", "success");
+  const addMeal = async () => {
+    if (!form.name || !form.protein) return trigger("INVALID INTEL", "error");
+    const result = await addNutritionEntry({ ...form, carbs: form.carbs || 0, fats: form.fats || 0 });
+    if (result) {
+      setForm({ name: '', protein: '', carbs: '', fats: '', type: 'Breakfast' });
+      trigger("FUEL DEPLOYED", "success");
+    }
   };
 
-  const totalCal = meals.reduce((a, b) => a + b.calories, 0);
+  const totalCal = nutritionStats.totalCalories || 0;
+  const maintenance = 2500;
+  const diff = totalCal - maintenance;
+
+  // AI PROJECTION LOGIC
+  const calculateAIProjection = () => {
+    const weeklySurplus = diff * 7;
+    const kgChange = (weeklySurplus / 7700).toFixed(2);
+    const pRatio = ((nutritionStats.totalProtein * 4) / (totalCal || 1)) * 100;
+    
+    if (diff > 0) {
+      return {
+        label: "Muscle Growth",
+        value: kgChange,
+        status: pRatio > 30 ? "Lean Gaining" : "High Surplus Warning",
+        color: "#FF7222"
+      };
+    } else {
+      return {
+        label: "Fat Loss",
+        value: Math.abs(kgChange),
+        status: "Incineration Active",
+        color: "#10b981"
+      };
+    }
+  };
+
+  const ai = calculateAIProjection();
+
+  const calculateEfficiency = () => {
+    if (totalCal === 0) return 0;
+    const proteinRatio = ((nutritionStats.totalProtein * 4) / totalCal) * 100;
+    return Math.min(Math.round(proteinRatio * 3), 100) || 0;
+  };
+
+  const weeklyData = [
+    { day: 'Mon', kcal: 2400 }, { day: 'Tue', kcal: 2800 }, { day: 'Wed', kcal: 2200 },
+    { day: 'Thu', kcal: totalCal }, { day: 'Fri', kcal: 2600 }, { day: 'Sat', kcal: 3100 }, { day: 'Sun', kcal: 2500 }
+  ];
+
+  const radarData = [
+    { subject: 'Protein', A: nutritionStats.totalProtein || 0 },
+    { subject: 'Carbs', A: nutritionStats.totalCarbs || 0 },
+    { subject: 'Fats', A: nutritionStats.totalFats || 0 },
+  ];
 
   return (
-    <div className="space-y-16 pb-32 text-white selection:bg-[#FF7222]">
+    <div className="space-y-12 pb-32 text-white selection:bg-[#FF7222]">
       <TacticalBlade isVisible={notif.show} message={notif.msg} type={notif.type} />
+      <AnimatePresence>{loading && <BiometricLoader />}</AnimatePresence>
 
-      {/* --- HEADER: 3D HOLOGRAPHIC CORE --- */}
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-10 items-start">
-        
-        <Interactive3D className="xl:col-span-7 relative group">
-          <div className="absolute inset-0 bg-gradient-to-tr from-[#FF7222]/20 to-transparent blur-[120px] rounded-full animate-pulse" />
-          <div className="relative bg-black/40 border-t border-l border-white/20 p-16 rounded-[5rem] backdrop-blur-3xl overflow-hidden shadow-[0_50px_100px_rgba(0,0,0,0.5)]">
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
+        <Interactive3D className="xl:col-span-8">
+          <div className="relative bg-[#050505] border border-white/10 p-10 rounded-[4rem] overflow-hidden shadow-2xl">
+            <div className="absolute -top-24 -left-24 w-80 h-80 bg-[#FF7222]/5 blur-[100px] rounded-full" />
             
-            {/* Holographic Ring Decor */}
-            <motion.div 
-              animate={{ rotate: 360 }} transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
-              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] border border-white/5 rounded-full border-dashed"
-            />
-
-            <div className="flex flex-col lg:flex-row items-center gap-16 relative z-10" style={{ transform: "translateZ(60px)" }}>
-              <div className="relative w-64 h-64">
-                <svg className="w-full h-full -rotate-90 drop-shadow-[0_0_20px_rgba(255,114,34,0.4)]">
-                  <circle cx="128" cy="128" r="115" stroke="rgba(255,255,255,0.03)" strokeWidth="25" fill="transparent" />
-                  <motion.circle 
-                    cx="128" cy="128" r="115" stroke="#FF7222" strokeWidth="25" fill="transparent"
-                    strokeDasharray="722" initial={{ strokeDashoffset: 722 }}
-                    animate={{ strokeDashoffset: 722 - (722 * (totalCal / 3000)) }}
-                    transition={{ duration: 2, ease: "circOut" }} strokeLinecap="round"
-                  />
-                </svg>
-                <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <p className="text-[10px] font-black tracking-[0.5em] text-gray-500 uppercase italic">Saturation</p>
-                  <h2 className="text-7xl font-[1000] italic leading-none">{totalCal}</h2>
-                  <p className="text-xs font-black text-[#FF7222] tracking-widest mt-2">KCAL TOTAL</p>
+            <div className="flex flex-col lg:flex-row items-center gap-10 relative z-10">
+              <div className="relative w-72 h-72 flex items-center justify-center">
+                <ResponsiveContainer width="100%" height="100%">
+                    <RadarChart cx="50%" cy="50%" outerRadius="75%" data={radarData}>
+                        <PolarGrid stroke="#222" />
+                        <PolarAngleAxis dataKey="subject" tick={{ fill: '#666', fontSize: 10, fontWeight: 900 }} />
+                        <Radar name="Macros" dataKey="A" stroke="#FF7222" fill="#FF7222" fillOpacity={0.5} />
+                    </RadarChart>
+                </ResponsiveContainer>
+                <div className="absolute flex flex-col items-center justify-center bg-black/80 w-24 h-24 rounded-full border border-white/10">
+                  <h2 className="text-3xl font-[1000] italic leading-none">{totalCal}</h2>
+                  <p className="text-[7px] font-black text-[#FF7222] uppercase tracking-widest">KCAL</p>
                 </div>
               </div>
 
-              <div className="space-y-6 flex-1">
-                <h1 className="text-6xl font-[1000] italic uppercase leading-[0.8] tracking-tighter">Bio-Fuel<br/><span className="text-[#FF7222]">Analysis</span></h1>
-                <div className="h-[2px] w-32 bg-gradient-to-r from-[#FF7222] to-transparent" />
-                <p className="text-gray-400 font-bold italic text-sm max-w-xs">Real-time molecular tracking of macronutrient deployment across the system.</p>
+              <div className="flex-1 space-y-6">
+                <div className="flex justify-between items-start">
+                    <div>
+                        <h1 className="text-5xl font-[1000] italic uppercase leading-[0.8] tracking-tighter">BIO-FUEL<br/><span className="text-[#FF7222]">CONTROL</span></h1>
+                        <p className="text-gray-500 font-bold uppercase text-[9px] mt-2 italic tracking-[0.2em]">AI Sync Active</p>
+                    </div>
+                    {/* --- AI PROJECTION WIDGET --- */}
+                    <div className="text-right bg-white/[0.03] p-5 rounded-[2rem] border border-[#FF7222]/20 backdrop-blur-md">
+                        <p className="text-[7px] font-black text-[#FF7222] uppercase mb-1 italic tracking-widest">AI Projection</p>
+                        <div className="flex items-baseline justify-end gap-1">
+                          <span className="text-3xl font-[1000] italic" style={{ color: ai.color }}>{ai.value}</span>
+                          <span className="text-[10px] font-black opacity-40 italic">KG/WK</span>
+                        </div>
+                        <p className="text-[8px] font-bold text-gray-500 uppercase mt-1">{ai.label}</p>
+                    </div>
+                </div>
+                
+                <div className="space-y-3 bg-black/40 p-6 rounded-[2.5rem] border border-white/5 relative overflow-hidden">
+                    <div className="flex justify-between items-end relative z-10">
+                        <p className="text-[8px] font-black uppercase text-gray-500 italic">Efficiency: {calculateEfficiency()}%</p>
+                        <p className={`text-xs font-[1000] italic ${diff > 0 ? 'text-[#FF7222]' : 'text-emerald-400'}`}>
+                            {diff > 0 ? `SURPLUS: +${diff}` : `DEFICIT: ${diff}`}
+                        </p>
+                    </div>
+                    <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden border border-white/5">
+                        <motion.div 
+                            initial={{ width: 0 }}
+                            animate={{ width: `${Math.min((totalCal/maintenance) * 100, 100)}%` }}
+                            className={`h-full rounded-full ${diff > 0 ? 'bg-[#FF7222]' : 'bg-emerald-500'}`}
+                        />
+                    </div>
+                    <p className="text-[7px] font-black uppercase text-gray-600 italic tracking-[0.3em]">{ai.status}</p>
+                </div>
               </div>
             </div>
           </div>
         </Interactive3D>
 
-        {/* --- MACRO CUBES --- */}
-        <div className="xl:col-span-5 grid grid-cols-1 gap-4">
-          {[{l: 'Protein', v: '185g', c: 'border-blue-500/50'}, {l: 'Carbs', v: '210g', c: 'border-[#FF7222]/50'}, {l: 'Fats', v: '65g', c: 'border-yellow-500/50'}].map((m, i) => (
-            <Interactive3D key={i} className={`bg-white/5 border-l-4 ${m.c} p-8 rounded-[2.5rem] backdrop-blur-xl hover:bg-white/10 transition-all`}>
-              <div className="flex justify-between items-center" style={{ transform: "translateZ(40px)" }}>
+        <div className="xl:col-span-4 grid grid-cols-1 gap-4">
+          {[
+            {label: 'Protein', value: nutritionStats.totalProtein, color: '#3b82f6', icon: '🧬'},
+            {label: 'Carbs', value: nutritionStats.totalCarbs, color: '#FF7222', icon: '⚡'},
+            {label: 'Fats', value: nutritionStats.totalFats, color: '#eab308', icon: '🔋'}
+          ].map((m, i) => (
+            <div key={i} className="bg-[#0A0A0A] border border-white/5 p-6 rounded-[2.5rem] flex items-center justify-between group hover:border-white/20 transition-all">
                 <div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.4em] text-gray-500 mb-1">{m.l}</p>
-                  <h4 className="text-4xl font-[1000] italic uppercase tracking-tighter">{m.v}</h4>
+                    <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest">{m.label}</p>
+                    <h4 className="text-4xl font-[1000] italic">{m.value || 0}<span className="text-xs ml-1 opacity-30 text-white italic">g</span></h4>
                 </div>
-                <div className="w-12 h-12 rounded-full border border-white/10 flex items-center justify-center opacity-20">⚡</div>
-              </div>
-            </Interactive3D>
+                <div style={{ color: m.color }} className="text-2xl opacity-50 group-hover:opacity-100 transition-opacity">{m.icon}</div>
+            </div>
           ))}
         </div>
       </div>
 
-      {/* --- BODY: LOGS & COMMANDER --- */}
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-12">
-        <div className="xl:col-span-8 space-y-8">
-          <div className="flex items-center gap-6 px-4">
-            <h3 className="text-4xl font-[1000] italic uppercase tracking-tighter">Tactical <span className="text-[#FF7222]">Logs</span></h3>
-            <div className="h-[1px] flex-1 bg-gradient-to-r from-white/20 to-transparent" />
-          </div>
-
-          <AnimatePresence mode="popLayout">
-            {meals.map((meal) => (
-              <Interactive3D key={meal.id} className="relative group overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-r from-[#FF7222]/0 to-[#FF7222]/5 opacity-0 group-hover:opacity-100 transition-opacity" />
-                <div className="bg-white/[0.02] border border-white/10 p-10 rounded-[4rem] flex flex-col md:flex-row justify-between items-center gap-8 relative z-10">
-                  <div className="flex items-center gap-10" style={{ transform: "translateZ(30px)" }}>
-                    <div className="text-center bg-black p-5 rounded-[2.5rem] border border-white/10 shadow-2xl">
-                      <p className="text-[8px] font-black text-gray-500 uppercase italic">Time</p>
-                      <p className="text-xl font-[1000] italic text-[#FF7222]">{meal.time}</p>
-                    </div>
-                    <div>
-                      <span className="text-[9px] font-black bg-[#FF7222] text-black px-4 py-1 rounded-full italic uppercase tracking-widest">{meal.type}</span>
-                      <h4 className="text-4xl font-[1000] italic uppercase mt-2 group-hover:translate-x-4 transition-transform duration-500">{meal.name}</h4>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-12 bg-black/40 p-6 rounded-[3rem] border border-white/10" style={{ transform: "translateZ(50px)" }}>
-                    <div className="text-center">
-                      <p className="text-4xl font-[1000] italic leading-none">+{meal.calories}</p>
-                      <p className="text-[10px] font-black text-[#FF7222] tracking-[0.3em] mt-1 uppercase">Stored KCAL</p>
-                    </div>
-                    <button onClick={() => setMeals(meals.filter(m => m.id !== meal.id))} className="w-14 h-14 bg-red-500/10 text-red-500 rounded-2xl flex items-center justify-center hover:bg-red-500 hover:text-white transition-all text-2xl shadow-lg shadow-red-500/20">✕</button>
-                  </div>
+      {/* --- WEEKLY FUEL FORECAST (GRAPH PRESERVED) --- */}
+      <Interactive3D className="w-full">
+        <div className="bg-[#050505] border border-white/10 p-10 rounded-[4rem] overflow-hidden">
+            <div className="flex items-center justify-between mb-8 px-4">
+                <div>
+                    <h3 className="text-3xl font-[1000] italic uppercase tracking-tighter text-white">Weekly <span className="text-[#FF7222]">Forecast</span></h3>
+                    <p className="text-[9px] font-black text-gray-500 uppercase italic">Fuel Consumption over 7-Day Cycle</p>
                 </div>
-              </Interactive3D>
-            ))}
-          </AnimatePresence>
+                <div className="bg-emerald-500/10 px-6 py-2 rounded-full border border-emerald-500/20 text-emerald-400 text-[10px] font-black uppercase italic animate-pulse">
+                    Live System Status: Stable
+                </div>
+            </div>
+            
+            <div className="h-64 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={weeklyData}>
+                        <defs>
+                            <linearGradient id="colorKcal" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#FF7222" stopOpacity={0.3}/>
+                                <stop offset="95%" stopColor="#FF7222" stopOpacity={0}/>
+                            </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#111" vertical={false} />
+                        <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{fill: '#444', fontSize: 10, fontWeight: 900}} />
+                        <YAxis hide domain={[0, 4000]} />
+                        <Tooltip 
+                            contentStyle={{ backgroundColor: '#000', border: '1px solid #333', borderRadius: '15px' }}
+                            itemStyle={{ color: '#FF7222', fontWeight: 1000 }}
+                        />
+                        <Area type="monotone" dataKey="kcal" stroke="#FF7222" strokeWidth={4} fillOpacity={1} fill="url(#colorKcal)" />
+                    </AreaChart>
+                </ResponsiveContainer>
+            </div>
+        </div>
+      </Interactive3D>
+
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-10">
+        <div className="xl:col-span-8 space-y-6">
+            <h3 className="text-3xl font-[1000] italic uppercase px-4 tracking-tighter text-white">Mission <span className="text-[#FF7222]">Logs</span></h3>
+            <div className="grid grid-cols-1 gap-4 max-h-[500px] overflow-y-auto custom-scrollbar pr-2">
+                <AnimatePresence mode="popLayout">
+                {nutrition.map((meal) => (
+                    <motion.div layout key={meal._id} className="bg-[#0A0A0A] border border-white/5 p-6 rounded-[2.5rem] flex items-center justify-between group">
+                        <div className="flex items-center gap-6">
+                            <div className="w-14 h-14 bg-[#FF7222]/5 border border-white/5 rounded-2xl flex flex-col items-center justify-center">
+                                <span className="text-[7px] font-black text-gray-500 uppercase italic">{meal.time}</span>
+                            </div>
+                            <div>
+                                <p className="text-[8px] font-black text-[#FF7222] uppercase tracking-widest">{meal.type}</p>
+                                <h4 className="text-2xl font-[1000] italic uppercase group-hover:translate-x-2 transition-transform">{meal.name}</h4>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-8 text-right">
+                            <div>
+                                <p className="text-2xl font-[1000] italic text-white">+{meal.calories}</p>
+                                <p className="text-[8px] font-black text-gray-600 uppercase">KCAL Unit</p>
+                            </div>
+                            <button onClick={() => deleteNutritionEntry(meal._id)} className="w-12 h-12 bg-red-500/5 text-red-500 border border-red-500/10 rounded-xl hover:bg-red-500 hover:text-white transition-all">✕</button>
+                        </div>
+                    </motion.div>
+                ))}
+                </AnimatePresence>
+            </div>
         </div>
 
-        {/* --- THE COMMANDER (3D FORM) --- */}
         <div className="xl:col-span-4">
           <Interactive3D className="sticky top-10">
-            <div className="bg-white p-14 rounded-[5.5rem] relative overflow-hidden shadow-[0_60px_120px_rgba(0,0,0,0.6)]">
-              {/* Back Texture Decorative */}
-              <div className="absolute -bottom-10 -right-10 text-[15rem] font-black italic text-black/[0.03] select-none uppercase">MACRO</div>
-              
-              <div className="relative z-10 space-y-8" style={{ transform: "translateZ(60px)" }}>
-                <h3 className="text-5xl font-[1000] italic uppercase leading-[0.85] text-black">INITIALIZE<br/><span className="text-[#FF7222]">DEPLOYMENT</span></h3>
+            <div className="bg-white rounded-[4rem] p-12 relative overflow-hidden shadow-2xl border-t-[12px] border-[#FF7222]">
+              <div className="relative z-10 space-y-6">
+                <h3 className="text-4xl font-[1000] italic uppercase leading-none text-black tracking-tighter underline decoration-[#FF7222]">DEPLOY UNIT</h3>
                 
                 <div className="space-y-4">
-                  <div className="space-y-2">
-                    <p className="text-[10px] font-black uppercase text-gray-400 ml-4 italic">Designation</p>
-                    <input value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder="MEAL TYPE..." className="w-full bg-black/5 p-6 rounded-[2.5rem] text-black font-[1000] italic uppercase text-lg outline-none border-2 border-transparent focus:border-black/10 transition-all" />
-                  </div>
-
-                  <select value={form.type} onChange={e => setForm({...form, type: e.target.value})} className="w-full bg-black text-white p-6 rounded-[2.5rem] font-black italic uppercase outline-none appearance-none cursor-pointer hover:bg-gray-900 transition-all">
+                  <input value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder="UNIT DESIGNATION" className="w-full bg-black/5 p-5 rounded-3xl text-black font-[1000] italic uppercase outline-none border-2 border-transparent focus:border-black/10" />
+                  
+                  <select value={form.type} onChange={e => setForm({...form, type: e.target.value})} className="w-full bg-black text-white p-5 rounded-3xl font-[1000] italic uppercase text-xs cursor-pointer outline-none">
                     {['Breakfast', 'Lunch', 'Dinner', 'Snacks'].map(t => <option key={t} value={t}>{t}</option>)}
                   </select>
 
                   <div className="grid grid-cols-3 gap-3">
                     {['protein', 'carbs', 'fats'].map(key => (
-                      <div key={key} className="bg-black/5 p-4 rounded-3xl text-center">
-                        <p className="text-[8px] font-black uppercase text-gray-400 mb-1">{key.slice(0, 3)}</p>
-                        <input value={form[key]} onChange={e => setForm({...form, [key]: e.target.value})} placeholder="0" className="w-full bg-transparent text-center text-black font-[1000] text-2xl outline-none" />
+                      <div key={key} className="bg-black/5 p-4 rounded-3xl text-center border border-black/5 hover:border-[#FF7222]/20 transition-colors">
+                        <p className="text-[7px] font-black uppercase text-gray-400 mb-1">{key}</p>
+                        <input value={form[key]} onChange={e => setForm({...form, [key]: e.target.value})} placeholder="0" className="w-full bg-transparent text-center text-black font-[1000] text-xl outline-none" />
                       </div>
                     ))}
                   </div>
 
                   <motion.button 
-                    whileHover={{ scale: 1.05, translateZ: 40 }} whileTap={{ scale: 0.95 }}
-                    onClick={addMeal}
-                    className="w-full bg-[#FF7222] py-8 rounded-[3rem] text-white font-[1000] italic uppercase text-2xl shadow-2xl shadow-orange-500/40 mt-6"
+                    whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                    onClick={addMeal} 
+                    className="w-full bg-black py-7 rounded-[3rem] text-white font-[1000] italic uppercase text-xl transition-all shadow-2xl flex items-center justify-center gap-4"
                   >
-                    DEPLOY UNIT +
+                    SYNC CORE <span className="text-[#FF7222]">+</span>
                   </motion.button>
-                  <p className="text-center text-[8px] font-black text-gray-300 uppercase tracking-[0.5em] italic">Awaiting Bio-Metric Confirmation</p>
                 </div>
               </div>
+              <div className="absolute -bottom-8 -right-8 text-[12rem] font-black italic text-black/[0.03] select-none pointer-events-none uppercase">Fuel</div>
             </div>
           </Interactive3D>
         </div>
