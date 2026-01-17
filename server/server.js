@@ -6,6 +6,8 @@ import { clerkMiddleware } from '@clerk/express'
 import clerkWebhooks from "./controllers/clerkWebhooks.js";
 import workoutRoutes from "./routes/workoutRoutes.js";
 import nutritionRoutes from "./routes/nutritionRoutes.js";
+import progressRoutes from "./routes/progressRoutes.js";
+import dashboardRoutes from "./routes/dashboardRoutes.js";
 
 connectDB()
 
@@ -26,6 +28,12 @@ app.use('/api/workouts', workoutRoutes);
 
 // Nutrition routes
 app.use('/api/nutrition', nutritionRoutes);
+
+// Progress routes
+app.use('/api/progress', progressRoutes);
+
+// Dashboard routes
+app.use('/api/dashboard', dashboardRoutes);
 
 app.get('/', (req, res) => res.send("API is working..."))
 

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, Radar, RadarChart, PolarGrid, PolarAngleAxis, CartesianGrid, ReferenceLine } from 'recharts';
 import { progressAsset } from '../../assets/assets';
+import { useAppContext } from '../../context/useAppContext';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -23,28 +24,50 @@ const NeuralSyncLoader = () => (
 );
 
 const ProgressModule = () => {
+  const { progress, goals, fetchProgress, fetchGoals, addProgressEntry, updateGoals, loading, error } = useAppContext();
+
   // --- STATE MANAGEMENT ---
-  const [history, setHistory] = useState(() => {
-    const savedData = localStorage.getItem('pulse_elite_v2');
-    return savedData ? JSON.parse(savedData) : progressAsset.initialHistory;
-  });
-
-  const [goals, setGoals] = useState(() => {
-    const savedGoals = localStorage.getItem('pulse_elite_goals');
-    return savedGoals ? JSON.parse(savedGoals) : { type: 'bench', value: 100 };
-  });
-
+  const [history, setHistory] = useState([]);
   const [form, setForm] = useState({ weight: '', bench: '', run: '', waist: '', neck: '', height: '175' });
   const [activeTab, setActiveTab] = useState('strength'); 
-  const [compareSelection, setCompareSelection] = useState([history[0], history[history.length - 1]]);
+  const [compareSelection, setCompareSelection] = useState([
+    { weight: 0, bench: 0, waist: 0, score: 0 },
+    { weight: 0, bench: 0, waist: 0, score: 0 }
+  ]);
   const [showMissionSuccess, setShowMissionSuccess] = useState(false);
   const [showTrendAlert, setShowTrendAlert] = useState(false); // NEW: Trend Popup
   const [isSyncing, setIsSyncing] = useState(false);
+  const [validationErrors, setValidationErrors] = useState({});
 
   useEffect(() => {
-    localStorage.setItem('pulse_elite_v2', JSON.stringify(history));
-    localStorage.setItem('pulse_elite_goals', JSON.stringify(goals));
-  }, [history, goals]);
+    fetchProgress();
+    fetchGoals();
+  }, []);
+
+  useEffect(() => {
+    // Convert progress to history format
+    const hist = progress.map(p => ({
+      id: p._id,
+      date: new Date(p.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }),
+      weight: p.weight,
+      bench: p.bench,
+      run: p.run,
+      waist: p.waist,
+      neck: p.neck,
+      height: p.height
+    }));
+    setHistory(hist);
+    if (hist.length >= 2) {
+      setCompareSelection([hist[0], hist[hist.length - 1]]);
+    } else if (hist.length === 1) {
+      setCompareSelection([hist[0], hist[0]]);
+    } else {
+      setCompareSelection([
+        { weight: 0, bench: 0, waist: 0, score: 0 },
+        { weight: 0, bench: 0, waist: 0, score: 0 }
+      ]);
+    }
+  }, [progress]);
 
   // --- TREND ANALYSIS LOGIC ---
   const getTrendData = () => {
@@ -79,34 +102,63 @@ const ProgressModule = () => {
     return Math.min(Math.max(Math.floor(score), 40), 99);
   };
 
-  const logData = () => {
-    if (!form.weight || !form.bench || !form.waist) return alert("Critical nodes missing.");
+  const validateForm = () => {
+    const errors = {};
+    const weight = parseFloat(form.weight);
+    const bench = parseFloat(form.bench);
+    const run = parseFloat(form.run);
+    const waist = parseFloat(form.waist);
+    const neck = parseFloat(form.neck);
+    const height = parseFloat(form.height);
 
-    const currentVal = parseFloat(form[goals.type]);
-    
-    // Mission Goal Check
-    if (currentVal >= goals.value && history[0][goals.type] < goals.value) {
-        setShowMissionSuccess(true);
-    } 
-    // Trend Improvement Check (If current is better than last entry)
-    else if (goals.type !== 'weight' ? currentVal > history[0][goals.type] : currentVal < history[0][goals.type]) {
-        setShowTrendAlert(true);
+    if (!form.weight || isNaN(weight) || weight <= 0 || weight > 500) {
+      errors.weight = 'Weight must be a positive number between 1-500 kg';
+    }
+    if (!form.bench || isNaN(bench) || bench <= 0 || bench > 1000) {
+      errors.bench = 'Bench press must be a positive number between 1-1000 kg';
+    }
+    if (form.run && (isNaN(run) || run < 0 || run > 100)) {
+      errors.run = 'Run time must be between 0-100 minutes';
+    }
+    if (!form.waist || isNaN(waist) || waist <= 0 || waist > 200) {
+      errors.waist = 'Waist must be a positive number between 1-200 cm';
+    }
+    if (form.neck && (isNaN(neck) || neck <= 0 || neck > 100)) {
+      errors.neck = 'Neck must be between 1-100 cm';
+    }
+    if (!form.height || isNaN(height) || height <= 0 || height > 300) {
+      errors.height = 'Height must be a positive number between 1-300 cm';
     }
 
-    const newEntry = {
-      id: Date.now(),
-      date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }),
+    setValidationErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const logData = async () => {
+    if (!validateForm()) return;
+
+    const progressData = {
+      date: new Date(),
       weight: parseFloat(form.weight),
       bench: parseFloat(form.bench),
       run: parseFloat(form.run) || 0,
       waist: parseFloat(form.waist),
       neck: parseFloat(form.neck) || 40,
-      height: parseFloat(form.height),
-      score: calculateBioScore(form)
+      height: parseFloat(form.height)
     };
 
-    setHistory([newEntry, ...history]);
-    setForm({ weight: '', bench: '', run: '', waist: '', neck: '', height: '175' });
+    const result = await addProgressEntry(progressData);
+    if (result) {
+      // Check for goals
+      const currentVal = parseFloat(form[goals.type]);
+      if (currentVal >= goals.value && history.length > 0 && history[0][goals.type] < goals.value) {
+        setShowMissionSuccess(true);
+      } else if (history.length > 0 && (goals.type !== 'weight' ? currentVal > history[0][goals.type] : currentVal < history[0][goals.type])) {
+        setShowTrendAlert(true);
+      }
+      setForm({ weight: '', bench: '', run: '', waist: '', neck: '', height: '175' });
+      setValidationErrors({});
+    }
   };
 
   const downloadReport = () => {
@@ -162,12 +214,12 @@ const ProgressModule = () => {
         
         <div className="flex items-center gap-4 bg-white/[0.03] p-3 rounded-[2.5rem] border border-white/10 backdrop-blur-md">
             <div className="px-6 border-r border-white/10 flex flex-col items-end">
-                <select value={goals.type} onChange={(e) => setGoals({...goals, type: e.target.value})} className="bg-transparent text-[9px] font-black text-gray-500 uppercase outline-none cursor-pointer">
+                <select value={goals.type} onChange={async (e) => { await updateGoals({...goals, type: e.target.value}); }} className="bg-transparent text-[9px] font-black text-gray-500 uppercase outline-none cursor-pointer">
                     <option value="bench" className="bg-black">Target Bench</option>
                     <option value="weight" className="bg-black">Target Weight</option>
                     <option value="run" className="bg-black">Target Run</option>
                 </select>
-                <input type="number" value={goals.value} onChange={(e)=>setGoals({...goals, value: e.target.value})} className="bg-transparent text-2xl font-[1000] italic text-[#FF7222] w-16 outline-none" />
+                <input type="number" value={goals.value} onChange={async (e)=> { await updateGoals({...goals, value: parseFloat(e.target.value) || 0}); }} className="bg-transparent text-2xl font-[1000] italic text-[#FF7222] w-16 outline-none" />
             </div>
             <button onClick={downloadReport} className="bg-[#FF7222] text-black px-8 py-4 rounded-3xl font-black text-[10px] uppercase tracking-widest">Export Intel</button>
         </div>
@@ -189,13 +241,13 @@ const ProgressModule = () => {
           
           <div className="md:col-span-2 bg-white/[0.03] border border-white/5 p-8 rounded-[3rem] flex items-center justify-between">
               <div>
-                  <h4 className="text-xl font-[1000] italic uppercase">Neural Insight: <span className="text-[#FF7222]">{Math.abs(goals.value - history[0][goals.type]).toFixed(1)} Units Remaining</span></h4>
-                  <p className="text-[10px] font-bold text-gray-500 uppercase mt-2 tracking-widest">Estimated {Math.ceil(Math.abs(goals.value - history[0][goals.type]) / (Math.abs(trend.diff) || 1))} more sessions at current rate</p>
+                  <h4 className="text-xl font-[1000] italic uppercase">Neural Insight: <span className="text-[#FF7222]">{history.length > 0 ? Math.abs(goals.value - history[0][goals.type]).toFixed(1) : goals.value} Units Remaining</span></h4>
+                  <p className="text-[10px] font-bold text-gray-500 uppercase mt-2 tracking-widest">Estimated {history.length > 0 ? Math.ceil(Math.abs(goals.value - history[0][goals.type]) / (Math.abs(trend.diff) || 1)) : 'N/A'} more sessions at current rate</p>
               </div>
               <div className="w-16 h-16 rounded-full border-4 border-[#FF7222]/20 flex items-center justify-center relative">
                   <svg className="w-12 h-12 -rotate-90">
                       <circle cx="24" cy="24" r="20" fill="transparent" stroke="#222" strokeWidth="4" />
-                      <circle cx="24" cy="24" r="20" fill="transparent" stroke="#FF7222" strokeWidth="4" strokeDasharray="125.6" strokeDashoffset={125.6 - (Math.min(history[0][goals.type] / goals.value, 1) * 125.6)} strokeLinecap="round" />
+                      <circle cx="24" cy="24" r="20" fill="transparent" stroke="#FF7222" strokeWidth="4" strokeDasharray="125.6" strokeDashoffset={125.6 - (history.length > 0 ? Math.min(history[0][goals.type] / goals.value, 1) * 125.6 : 0)} strokeLinecap="round" />
                   </svg>
               </div>
           </div>
@@ -211,10 +263,11 @@ const ProgressModule = () => {
           {[{ label: 'Weight', key: 'weight' }, { label: 'Bench', key: 'bench' }, { label: 'Run', key: 'run' }, { label: 'Waist', key: 'waist' }, { label: 'Neck', key: 'neck' }, { label: 'Height', key: 'height' }].map((item) => (
             <div key={item.key} className="space-y-1">
               <label className="text-[9px] font-black text-gray-400 uppercase ml-3 tracking-tighter">{item.label}</label>
-              <input type="number" value={form[item.key]} onChange={(e) => setForm({...form, [item.key]: e.target.value})} className="w-full bg-gray-50 p-5 rounded-3xl text-black font-[1000] text-2xl italic border-2 border-transparent focus:border-[#FF7222] outline-none" />
+              <input type="number" value={form[item.key]} onChange={(e) => setForm({...form, [item.key]: e.target.value})} className={`w-full bg-gray-50 p-5 rounded-3xl text-black font-[1000] text-2xl italic border-2 outline-none ${validationErrors[item.key] ? 'border-red-500' : 'border-transparent focus:border-[#FF7222]'}`} />
+              {validationErrors[item.key] && <p className="text-red-500 text-[8px] font-bold uppercase">{validationErrors[item.key]}</p>}
             </div>
           ))}
-          <button onClick={logData} className="col-span-2 md:col-span-3 xl:col-span-6 bg-black py-6 rounded-3xl font-[1000] italic uppercase text-white hover:bg-[#FF7222] transition-all text-xl">Push Data to Vault +</button>
+          <button onClick={logData} disabled={loading} className="col-span-2 md:col-span-3 xl:col-span-6 bg-black py-6 rounded-3xl font-[1000] italic uppercase text-white hover:bg-[#FF7222] transition-all text-xl disabled:opacity-50">Push Data to Vault +</button>
         </div>
       </div>
 
@@ -223,7 +276,12 @@ const ProgressModule = () => {
         <div className="xl:col-span-4 bg-[#0A0A0A] border border-white/5 rounded-[4rem] p-10 flex flex-col justify-between shadow-2xl">
           <div className="h-72">
             <ResponsiveContainer width="100%" height="100%">
-              <RadarChart data={[{ subject: 'Weight', A: compareSelection[0]?.weight, B: compareSelection[1]?.weight }, { subject: 'Bench', A: compareSelection[0]?.bench, B: compareSelection[1]?.bench }, { subject: 'Waist', A: compareSelection[0]?.waist * 2, B: compareSelection[1]?.waist * 2 }, { subject: 'Vitality', A: compareSelection[0]?.score, B: compareSelection[1]?.score }]}>
+              <RadarChart data={[
+                { subject: 'Weight', A: compareSelection[0].weight, B: compareSelection[1].weight },
+                { subject: 'Bench', A: compareSelection[0].bench, B: compareSelection[1].bench },
+                { subject: 'Waist', A: compareSelection[0].waist * 2, B: compareSelection[1].waist * 2 },
+                { subject: 'Vitality', A: calculateBioScore(compareSelection[0]), B: calculateBioScore(compareSelection[1]) }
+              ]}>
                 <PolarGrid stroke="#222" /><PolarAngleAxis dataKey="subject" tick={{fill: '#444', fontSize: 10, fontWeight: 900}} />
                 <Radar dataKey="A" stroke="#333" fill="#333" fillOpacity={0.3} /><Radar dataKey="B" stroke="#FF7222" fill="#FF7222" fillOpacity={0.5} />
               </RadarChart>

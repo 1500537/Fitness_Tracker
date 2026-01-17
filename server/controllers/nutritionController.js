@@ -3,7 +3,7 @@ import Nutrition from "../models/nutritionModal.js";
 // Get all nutrition entries for a user
 export const getNutrition = async (req, res) => {
   try {
-    const { userId } = req.auth;
+    const userId = req.user._id;
     const { date } = req.query;
 
     let query = { userId };
@@ -41,19 +41,46 @@ export const getNutrition = async (req, res) => {
 // Add new nutrition entry
 export const addNutrition = async (req, res) => {
   try {
-    const { userId } = req.auth;
+    const userId = req.user._id;
     const { name, type, protein, carbs, fats } = req.body;
 
     // Validation
-    if (!name || !protein || carbs === undefined || fats === undefined) {
+    if (!name || typeof name !== 'string' || name.trim().length < 2 || name.length > 100) {
       return res.status(400).json({
         success: false,
-        message: "Name, protein, carbs, and fats are required"
+        message: "Invalid name"
+      });
+    }
+    if (!type || !['Breakfast', 'Lunch', 'Dinner', 'Snacks'].includes(type)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid meal type"
+      });
+    }
+    const proteinNum = parseFloat(protein);
+    if (isNaN(proteinNum) || proteinNum < 0 || proteinNum > 500) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid protein"
+      });
+    }
+    const carbsNum = parseFloat(carbs || 0);
+    if (isNaN(carbsNum) || carbsNum < 0 || carbsNum > 1000) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid carbs"
+      });
+    }
+    const fatsNum = parseFloat(fats || 0);
+    if (isNaN(fatsNum) || fatsNum < 0 || fatsNum > 500) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid fats"
       });
     }
 
     // Calculate calories
-    const calories = (Number(protein) * 4) + (Number(carbs) * 4) + (Number(fats) * 9);
+    const calories = (proteinNum * 4) + (carbsNum * 4) + (fatsNum * 9);
 
     // Get current time
     const time = new Date().toLocaleTimeString([], {
@@ -64,10 +91,10 @@ export const addNutrition = async (req, res) => {
     const nutritionEntry = new Nutrition({
       userId,
       name: name.trim(),
-      type: type || 'Breakfast',
-      protein: Number(protein),
-      carbs: Number(carbs),
-      fats: Number(fats),
+      type,
+      protein: proteinNum,
+      carbs: carbsNum,
+      fats: fatsNum,
       calories,
       time
     });
@@ -92,7 +119,7 @@ export const addNutrition = async (req, res) => {
 // Update nutrition entry
 export const updateNutrition = async (req, res) => {
   try {
-    const { userId } = req.auth;
+    const userId = req.user._id;
     const { id } = req.params;
     const { name, type, protein, carbs, fats } = req.body;
 
@@ -136,7 +163,7 @@ export const updateNutrition = async (req, res) => {
 // Delete nutrition entry
 export const deleteNutrition = async (req, res) => {
   try {
-    const { userId } = req.auth;
+    const userId = req.user._id;
     const { id } = req.params;
 
     const deletedEntry = await Nutrition.findOneAndDelete({ _id: id, userId });
@@ -165,7 +192,7 @@ export const deleteNutrition = async (req, res) => {
 // Get nutrition statistics
 export const getNutritionStats = async (req, res) => {
   try {
-    const { userId } = req.auth;
+    const userId = req.user._id;
     const { date } = req.query;
 
     let matchQuery = { userId };

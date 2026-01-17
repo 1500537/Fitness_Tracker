@@ -192,3 +192,40 @@ export const progressAssets = {
     bg: '#020202'
   }
 };
+// assets.js
+export const AI_AVATARS = {
+  trainer: "https://images.unsplash.com/photo-1594381898411-846e7d193883?q=80&w=300&h=300&auto=format&fit=crop" // Professional Fitness Trainer
+};
+
+// assets.js
+export const COACH_INTEL = {
+  trainerImage: athelete, // Professional Trainer/Builder
+  suggestions: {
+    surplus_high_protein: [
+      "Current fuel levels optimal for hypertrophy. Focus on progressive overload in today's heavy sets.",
+      "Anabolic window is peak. Ensure 8 hours of REM sleep for maximum fiber repair.",
+      "High protein detected. Maintain hydration to support renal processing of amino acids."
+    ],
+    surplus_low_protein: [
+      "Caloric surplus detected but nitrogen balance is suboptimal. Increase lean protein to prevent fat gain.",
+      "Energy high, building blocks low. Deploy 30g whey or 150g chicken to hit growth targets.",
+      "Warning: High carb surplus without protein sync leads to insulin resistance. Balance the load."
+    ],
+    deficit_high_protein: [
+      "Incineration active. High protein is shielding muscle mass from catabolism. Stay the course.",
+      "Fat oxidation at peak. If lethargy hits, consider a 50g complex carb 'refeed' tomorrow.",
+      "Elite conditioning protocol detected. Your muscle-to-fat ratio is trending towards stage-ready."
+    ],
+    deficit_low_protein: [
+      "CRITICAL: Muscle tissue at risk. Increase protein immediately to prevent catabolic breakdown.",
+      "Deficit too steep for current protein intake. Body may scavenge muscle for energy. Adjust fuel.",
+      "Emergency protocol: Add BCAA or Casein to maintain current lean mass during this cut."
+    ],
+    neutral: [
+      "System stabilized at maintenance. Good for strength retention and recovery cycles.",
+      "Baseline fuel levels reached. Awaiting mission parameters for growth or cut phase.",
+      "Nutrient timing is key. Ensure your largest carb meal is post-workout for glycogen reload."
+    ]
+  }
+};
+export const athlete = assets.athleteImg;

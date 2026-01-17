@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@clerk/clerk-react';
 
 const AppContext = createContext();
@@ -7,6 +7,9 @@ export const AppProvider = ({ children }) => {
   const { userId, isLoaded } = useAuth();
   const [workouts, setWorkouts] = useState([]);
   const [nutrition, setNutrition] = useState([]);
+  const [progress, setProgress] = useState([]);
+  const [goals, setGoals] = useState({ type: 'bench', value: 100 });
+  const [dashboard, setDashboard] = useState(null);
   const [nutritionStats, setNutritionStats] = useState({
     totalCalories: 0,
     totalProtein: 0,
@@ -219,6 +222,89 @@ export const AppProvider = ({ children }) => {
     }
   };
 
+  // Fetch progress entries
+  const fetchProgress = async () => {
+    if (!userId) return;
+
+    setLoading(true);
+    try {
+      const response = await fetch(`${API_BASE}/progress`, {
+        headers: {
+          'Authorization': `Bearer ${await window.Clerk.session.getToken()}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setProgress(data.progress);
+      } else {
+        setError(data.message);
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch goals
+  const fetchGoals = async () => {
+    if (!userId) return;
+
+    try {
+      const response = await fetch(`${API_BASE}/progress/goals`, {
+        headers: {
+          'Authorization': `Bearer ${await window.Clerk.session.getToken()}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setGoals(data.goals);
+      } else {
+        setError(data.message);
+      }
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  // Fetch dashboard data
+  const fetchDashboard = useCallback(async () => {
+    if (!userId) return;
+
+    setLoading(true);
+    try {
+      const response = await fetch(`${API_BASE}/dashboard`, {
+        headers: {
+          'Authorization': `Bearer ${await window.Clerk.session.getToken()}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setDashboard(data.dashboard);
+        // Update related state from dashboard data
+        setNutritionStats({
+          totalCalories: data.dashboard.stats.totalCalories,
+          totalProtein: data.dashboard.stats.totalProtein,
+          totalCarbs: data.dashboard.stats.totalCarbs,
+          totalFats: data.dashboard.stats.totalFats,
+          mealCount: data.dashboard.recentNutrition.length
+        });
+      } else {
+        setError(data.message);
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [userId]);
+
   // Add new nutrition entry
   const addNutritionEntry = async (nutritionData) => {
     if (!userId) return null;
@@ -316,12 +402,69 @@ export const AppProvider = ({ children }) => {
     }
   }, [userId, isLoaded]);
 
+  // Add new progress entry
+  const addProgressEntry = async (progressData) => {
+    if (!userId) return null;
+
+    try {
+      const response = await fetch(`${API_BASE}/progress`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${await window.Clerk.session.getToken()}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(progressData)
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setProgress(prev => [data.progress, ...prev]);
+        return data.progress;
+      } else {
+        setError(data.message);
+        return null;
+      }
+    } catch (err) {
+      setError(err.message);
+      return null;
+    }
+  };
+
+  // Update goals
+  const updateGoals = async (goalsData) => {
+    if (!userId) return null;
+
+    try {
+      const response = await fetch(`${API_BASE}/progress/goals`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${await window.Clerk.session.getToken()}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(goalsData)
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setGoals(data.goals);
+        return data.goals;
+      } else {
+        setError(data.message);
+        return null;
+      }
+    } catch (err) {
+      setError(err.message);
+      return null;
+    }
+  };
+
   const value = {
     workouts,
     nutrition,
     nutritionStats,
     loading,
     error,
+    dashboard,
     fetchWorkouts,
     createWorkout,
     updateWorkout,
@@ -332,6 +475,13 @@ export const AppProvider = ({ children }) => {
     addNutritionEntry,
     updateNutritionEntry,
     deleteNutritionEntry,
+    progress,
+    goals,
+    fetchProgress,
+    fetchGoals,
+    fetchDashboard,
+    addProgressEntry,
+    updateGoals,
     setError
   };
 

@@ -1,4 +1,5 @@
 import express from "express";
+import { protect } from '../middleware/authMiddleware.js';
 import {
   getNutrition,
   addNutrition,
@@ -9,7 +10,9 @@ import {
 
 const router = express.Router();
 
-// All routes require authentication via Clerk middleware
+// All routes require authentication
+router.use(protect);
+
 // GET /api/nutrition - Get all nutrition entries for user
 router.get("/", getNutrition);
 
