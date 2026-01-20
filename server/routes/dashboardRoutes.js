@@ -1,5 +1,5 @@
 import express from 'express';
-import { getDashboardData, getDashboardSummary } from '../controllers/dashboardController.js';
+import { getDashboardData, getDashboardSummary, getUserData } from '../controllers/dashboardController.js';
 import authMiddleware from '../middleware/authMiddleware.js';
 
 const router = express.Router();
@@ -9,5 +9,8 @@ router.get('/', authMiddleware, getDashboardData);
 
 // Get dashboard summary (lightweight)
 router.get('/summary', authMiddleware, getDashboardSummary);
+
+// Get user data
+router.get('/user', authMiddleware, getUserData);
 
 export default router;

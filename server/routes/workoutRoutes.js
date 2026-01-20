@@ -10,7 +10,7 @@ import {
 
 const router = express.Router();
 
-// All routes require authentication
+// All user workout routes require authentication
 router.use(protect);
 
 // Get all workouts for the authenticated user

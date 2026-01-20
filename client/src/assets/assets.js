@@ -90,6 +90,33 @@ export const pricingData = [
     popular: false
   }
 ];
+// Existing exports...
+export const INITIAL_SUBSCRIPTIONS = [
+  { 
+    id: 'TX-9901', 
+    user: 'Alpha_User', 
+    plan: 'Basic', 
+    start: new Date(), 
+    end: new Date(Date.now() + 10000000), 
+    status: 'Active' 
+  },
+  { 
+    id: 'TX-9902', 
+    user: 'Ghost_Protocol', 
+    plan: 'Premium', 
+    start: new Date(), 
+    end: new Date(Date.now() + 50000000), 
+    status: 'Active' 
+  },
+  { 
+    id: 'TX-9903', 
+    user: 'Cyber_Punk', 
+    plan: 'Elite Force', 
+    start: new Date(), 
+    end: new Date(Date.now() + 15000), // 15 Seconds for live demo
+    status: 'Expiring' 
+  },
+];
 
 
 // ... purani images and data yahan rahengy
@@ -229,3 +256,161 @@ export const COACH_INTEL = {
   }
 };
 export const athlete = assets.athleteImg;
+
+//admin dummydata
+// --- FITNESS & BUSINESS CORE ASSETS ---
+
+// 1. TOP LEVEL STATS (Cards)
+export const SYSTEM_STATS = [
+  { 
+    id: 1, 
+    metric: 'users', 
+    label: "Total_User_Base", 
+    value: "12,402", 
+    change: "+18%", 
+    trend: "up", 
+    color: "#FF7222", 
+    sub: "Verified_Accounts",
+    valueSuffix: "" 
+  },
+  { 
+    id: 2, 
+    metric: 'active', 
+    label: "Active_Realtime", 
+    value: "2,842", 
+    change: "Live", 
+    trend: "up", 
+    color: "#00F0FF", 
+    sub: "User_Engagement",
+    valueSuffix: "" 
+  },
+  { 
+    id: 3, 
+    metric: 'workouts', 
+    label: "Workout_Library", 
+    value: "148", 
+    change: "+12", 
+    trend: "up", 
+    color: "#AD00FF", 
+    sub: "Premium_Content",
+    valueSuffix: "Plans" 
+  },
+  { 
+    id: 4, 
+    metric: 'revenue', 
+    label: "Plans_Revenue", 
+    value: "84.2", 
+    change: "+24%", 
+    trend: "up", 
+    color: "#00FF66", 
+    sub: "Fiscal_Growth",
+    valueSuffix: "k" 
+  },
+];
+
+// 2. HISTORICAL CANDLESTICK DATA (Date-wise)
+// Format: Date, Day, Open, Close, High, Low
+export const HISTORICAL_DATA = {
+  users: [
+    { date: '2026-01-12', day: 'Mon', open: 11000, close: 11500, high: 11800, low: 10800 },
+    { date: '2026-01-13', day: 'Tue', open: 11500, close: 11200, high: 12000, low: 11000 },
+    { date: '2026-01-14', day: 'Wed', open: 11200, close: 11800, high: 12200, low: 11000 },
+    { date: '2026-01-15', day: 'Thu', open: 11800, close: 12100, high: 12500, low: 11600 },
+    { date: '2026-01-16', day: 'Fri', open: 12100, close: 11900, high: 12300, low: 11800 },
+    { date: '2026-01-17', day: 'Sat', open: 11900, close: 12300, high: 12600, low: 11700 },
+    { date: '2026-01-18', day: 'Sun', open: 12300, close: 12402, high: 12800, low: 12100 },
+  ],
+  active: [
+    { date: '2026-01-12', day: 'Mon', open: 2100, close: 2400, high: 2600, low: 2000 },
+    { date: '2026-01-13', day: 'Tue', open: 2400, close: 2200, high: 2500, low: 2100 },
+    { date: '2026-01-14', day: 'Wed', open: 2200, close: 2600, high: 2800, low: 2150 },
+    { date: '2026-01-15', day: 'Thu', open: 2600, close: 2800, high: 2900, low: 2500 },
+    { date: '2026-01-16', day: 'Fri', open: 2800, close: 2500, high: 2850, low: 2400 },
+    { date: '2026-01-17', day: 'Sat', open: 2500, close: 2700, high: 2900, low: 2450 },
+    { date: '2026-01-18', day: 'Sun', open: 2700, close: 2842, high: 3000, low: 2600 },
+  ],
+  workouts: [
+    { date: '2026-01-12', day: 'Mon', open: 120, close: 130, high: 135, low: 115 },
+    { date: '2026-01-13', day: 'Tue', open: 130, close: 125, high: 132, low: 120 },
+    { date: '2026-01-14', day: 'Wed', open: 125, close: 135, high: 140, low: 122 },
+    { date: '2026-01-15', day: 'Thu', open: 135, close: 140, high: 145, low: 130 },
+    { date: '2026-01-16', day: 'Fri', open: 140, close: 138, high: 142, low: 135 },
+    { date: '2026-01-17', day: 'Sat', open: 138, close: 145, high: 148, low: 136 },
+    { date: '2026-01-18', day: 'Sun', open: 145, close: 148, high: 152, low: 142 },
+  ],
+  revenue: [
+    { date: '2026-01-12', day: 'Mon', open: 65.5, close: 72.1, high: 75.0, low: 62.0 },
+    { date: '2026-01-13', day: 'Tue', open: 72.1, close: 68.4, high: 74.0, low: 67.0 },
+    { date: '2026-01-14', day: 'Wed', open: 68.4, close: 78.9, high: 81.0, low: 66.0 },
+    { date: '2026-01-15', day: 'Thu', open: 78.9, close: 80.2, high: 83.5, low: 76.0 },
+    { date: '2026-01-16', day: 'Fri', open: 80.2, close: 77.5, high: 82.0, low: 75.0 },
+    { date: '2026-01-17', day: 'Sat', open: 77.5, close: 82.3, high: 85.0, low: 76.0 },
+    { date: '2026-01-18', day: 'Sun', open: 82.3, close: 84.2, high: 89.0, low: 80.0 },
+  ]
+};
+
+// 3. TRANSACTION & ACTIVITY LOGS
+export const RECENT_LOGS = [
+  { 
+    id: "TX-902", 
+    user: "Zane_Alpha", 
+    action: "Premium_Plan_Sync", 
+    status: "Paid", 
+    time: "2m ago", 
+    amount: "$199.00" 
+  },
+  { 
+    id: "TX-441", 
+    user: "Sarah_Core", 
+    action: "Personal_Training", 
+    status: "Paid", 
+    time: "14m ago", 
+    amount: "$50.00" 
+  },
+  { 
+    id: "TX-102", 
+    user: "Guest_User", 
+    action: "Library_Access", 
+    status: "Denied", 
+    time: "1h ago", 
+    amount: "$0.00" 
+  },
+  { 
+    id: "TX-883", 
+    user: "Iron_Mike", 
+    action: "Annual_Sub", 
+    status: "Paid", 
+    time: "3h ago", 
+    amount: "$899.00" 
+  },
+];
+
+// 4. WORKOUT CATEGORIES (For future use in UI)
+export const WORKOUT_TYPES = [
+  { label: "Strength", count: 45, icon: "Dumbbell" },
+  { label: "Cardio", count: 32, icon: "Activity" },
+  { label: "Recovery", count: 21, icon: "Heart" },
+  { label: "Yoga", count: 50, icon: "Zap" },
+];
+
+//user dummydata in admin
+export const USERS_LIST = [
+  {
+    id: "UID-7782",
+    username: "Muhammad Umar",
+    email: "muhammadumar.edu7@gmail.com",
+    image: "https://img.clerk.com/eyJ0eXBlIjoicHJveHkiLCJzcmMiOiJodHRwczovL2ltYWdlcy51bnNwbGFzaC5jb20vcGhvdG8tMTUzNTc1OTc4NDIzMC1hMTlhYmNmOWFkM2Q/dz0xMDAmZz04MCJ9",
+    pricing: "starter",
+    role: "user",
+    isBanned: false
+  },
+  {
+    id: "UID-8821",
+    username: "Sarah Khan",
+    email: "sarah.fitness@gmail.com",
+    image: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop",
+    pricing: "pro",
+    role: "user",
+    isBanned: false
+  }
+];

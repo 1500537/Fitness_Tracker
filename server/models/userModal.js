@@ -7,7 +7,11 @@ const userSchema = mongoose.Schema({
     image: {type: String, required: true},
     pricing: {type: String, enum: ["starter", "pro", "elite"], default: "starter"} ,
     role: {type: String, enum: ["user", "admin", "owner"], default: "user"},
-    goals: {type: Object, default: { type: 'bench', value: 100 }}
+    isBanned: {type: Boolean, default: false},
+    banReason: {type: String, default: ""},
+    goals: {type: Object, default: { type: 'bench', value: 100 }},
+    trialStart: {type: Date},
+    trialEnd: {type: Date}
 },{timestamps: true}
 );
 

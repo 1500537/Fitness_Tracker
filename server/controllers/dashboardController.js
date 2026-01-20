@@ -1,6 +1,7 @@
 import Workout from "../models/workoutModal.js";
 import Nutrition from "../models/nutritionModal.js";
 import Progress from "../models/progressModal.js";
+import User from "../models/userModal.js";
 
 // Get dashboard data for a user
 export const getDashboardData = async (req, res) => {
@@ -100,6 +101,53 @@ export const getDashboardSummary = async (req, res) => {
                 nutrition: nutritionCount,
                 progress: progressCount,
                 lastUpdated: new Date()
+            }
+        });
+
+    } catch (error) {
+        res.json({
+            success: false,
+            message: error.message
+        });
+    }
+};
+
+// Get user data including trial info
+export const getUserData = async (req, res) => {
+    try {
+        const userId = req.user._id;
+        const user = await User.findById(userId).select('-password');
+
+        if (!user) {
+            return res.json({
+                success: false,
+                message: 'User not found'
+            });
+        }
+
+        // If starter and no trial start, initialize trial
+        if (user.pricing === 'starter' && !user.trialStart) {
+            const now = new Date();
+            const trialEnd = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // 7 days
+            user.trialStart = now;
+            user.trialEnd = trialEnd;
+            await user.save();
+        }
+
+        res.json({
+            success: true,
+            user: {
+                _id: user._id,
+                username: user.username,
+                email: user.email,
+                image: user.image,
+                pricing: user.pricing,
+                role: user.role,
+                isBanned: user.isBanned,
+                banReason: user.banReason,
+                goals: user.goals,
+                trialStart: user.trialStart,
+                trialEnd: user.trialEnd
             }
         });
 

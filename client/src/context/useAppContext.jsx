@@ -1,15 +1,18 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { useAuth } from '@clerk/clerk-react';
+import { useAuth, useClerk } from '@clerk/clerk-react';
+import { io } from 'socket.io-client';
 
 const AppContext = createContext();
 
 export const AppProvider = ({ children }) => {
   const { userId, isLoaded } = useAuth();
+  const { signOut } = useClerk();
   const [workouts, setWorkouts] = useState([]);
   const [nutrition, setNutrition] = useState([]);
   const [progress, setProgress] = useState([]);
   const [goals, setGoals] = useState({ type: 'bench', value: 100 });
   const [dashboard, setDashboard] = useState(null);
+  const [user, setUser] = useState(null);
   const [nutritionStats, setNutritionStats] = useState({
     totalCalories: 0,
     totalProtein: 0,
@@ -20,8 +23,84 @@ export const AppProvider = ({ children }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
+  // Admin user management
+  const [allUsers, setAllUsers] = useState([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+
+  // Real-time ban alert
+  const [banAlert, setBanAlert] = useState(null);
+
   // API base URL
   const API_BASE = 'http://localhost:3000/api';
+
+  // Admin drill management
+  const [drills, setDrills] = useState([]);
+  const [drillsLoading, setDrillsLoading] = useState(false);
+
+  // Admin category management
+  const [categories, setCategories] = useState([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(false);
+
+  // Socket for real-time drill updates
+  useEffect(() => {
+    if (isLoaded && userId) {
+      const newSocket = io('http://localhost:3000', {
+        transports: ['websocket', 'polling'],
+        timeout: 5000,
+        reconnection: true,
+        reconnectionAttempts: 5,
+        reconnectionDelay: 1000,
+      });
+
+      // Connection events
+      newSocket.on('connect', () => {
+        console.log('Connected to server');
+        newSocket.emit('join-user-room', userId);
+        newSocket.emit('join-workouts-room');
+        newSocket.emit('join-categories-room');
+      });
+
+      // Real-time drill updates
+      newSocket.on('drillCreated', (drill) => {
+        setDrills(prev => [drill, ...prev]);
+      });
+
+      newSocket.on('drillUpdated', (drill) => {
+        setDrills(prev => prev.map(d => d._id === drill._id ? drill : d));
+      });
+
+      newSocket.on('drillDeleted', (id) => {
+        setDrills(prev => prev.filter(d => d._id !== id));
+      });
+
+      // Real-time category updates
+      newSocket.on('categoryCreated', (category) => {
+        setCategories(prev => [category, ...prev]);
+      });
+
+      newSocket.on('categoryUpdated', (category) => {
+        setCategories(prev => prev.map(c => c._id === category._id ? category : c));
+      });
+
+      newSocket.on('categoryDeleted', (id) => {
+        setCategories(prev => prev.filter(c => c._id !== id));
+      });
+
+      // Handle real-time ban notification
+      newSocket.on('user-banned', (banData) => {
+        console.log('User banned:', banData);
+        setBanAlert(banData);
+      });
+
+      newSocket.on('disconnect', () => {
+        console.log('Disconnected from server');
+      });
+
+      return () => {
+        newSocket.disconnect();
+      };
+    }
+  }, [isLoaded, userId]);
 
   // Fetch workouts for the current user
   const fetchWorkouts = async () => {
@@ -305,6 +384,38 @@ export const AppProvider = ({ children }) => {
     }
   }, [userId]);
 
+  // Fetch user data
+  const fetchUser = useCallback(async () => {
+    if (!userId) return;
+
+    try {
+      const response = await fetch(`${API_BASE}/dashboard/user`, {
+        headers: {
+          'Authorization': `Bearer ${await window.Clerk.session.getToken()}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setUser(data.user);
+
+        // Check if user is banned immediately after fetching user data
+        if (data.user.isBanned) {
+          console.log('User is banned, setting ban alert');
+          setBanAlert({
+            message: 'Your account has been suspended',
+            reason: data.user.banReason || 'Your account has been suspended. Please contact support.'
+          });
+        }
+      } else {
+        setError(data.message);
+      }
+    } catch (err) {
+      setError(err.message);
+    }
+  }, [userId]);
+
   // Add new nutrition entry
   const addNutritionEntry = async (nutritionData) => {
     if (!userId) return null;
@@ -458,6 +569,419 @@ export const AppProvider = ({ children }) => {
     }
   };
 
+  // Admin User Management Functions
+  const fetchAllUsers = useCallback(async () => {
+    setUsersLoading(true);
+    setError(null);
+    try {
+      const response = await fetch(`${API_BASE}/users/all`, {
+        headers: {
+          'Authorization': `Bearer ${await window.Clerk.session.getToken()}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setAllUsers(data.users);
+      } else {
+        setError(data.message);
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setUsersLoading(false);
+    }
+  }, [API_BASE]);
+
+  const updateUser = useCallback(async (userId, userData) => {
+    try {
+      const response = await fetch(`${API_BASE}/users/${userId}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${await window.Clerk.session.getToken()}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(userData)
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setAllUsers(prev => prev.map(user => user._id === userId ? { ...user, ...userData } : user));
+        return true;
+      } else {
+        setError(data.message);
+        return false;
+      }
+    } catch (err) {
+      setError(err.message);
+      return false;
+    }
+  }, [API_BASE]);
+
+  const deleteUser = useCallback(async (userId) => {
+    try {
+      const response = await fetch(`${API_BASE}/users/${userId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${await window.Clerk.session.getToken()}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setAllUsers(prev => prev.filter(user => user._id !== userId));
+        return true;
+      } else {
+        setError(data.message);
+        return false;
+      }
+    } catch (err) {
+      setError(err.message);
+      return false;
+    }
+  }, [API_BASE]);
+
+  const toggleUserBan = useCallback(async (userId, banStatus, banReason = '') => {
+    try {
+      const response = await fetch(`${API_BASE}/users/${userId}/ban`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${await window.Clerk.session.getToken()}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ banReason })
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setAllUsers(prev => prev.map(user =>
+          user._id === userId
+            ? { ...user, isBanned: banStatus, banReason: banStatus ? banReason : '' }
+            : user
+        ));
+        return true;
+      } else {
+        setError(data.message);
+        return false;
+      }
+    } catch (err) {
+      setError(err.message);
+      return false;
+    }
+  }, [API_BASE]);
+
+  // Drill Management Functions
+  const fetchDrills = async () => {
+    setDrillsLoading(true);
+    try {
+      const token = await window.Clerk.session.getToken();
+      const response = await fetch(`${API_BASE}/workout-overview/drills`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      if (data.success) {
+        setDrills(data.drills);
+      } else {
+        setError(data.message);
+      }
+    } catch (err) {
+      console.error('Error fetching drills:', err);
+      setError(err.message);
+    } finally {
+      setDrillsLoading(false);
+    }
+  };
+
+  const createDrill = async (drillData) => {
+    try {
+      const token = await window.Clerk.session.getToken();
+      const response = await fetch(`${API_BASE}/workout-overview/drills`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(drillData)
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      if (data.success) {
+        return { success: true, drill: data.drill, message: data.message };
+      } else {
+        setError(data.message);
+        return { success: false, message: data.message };
+      }
+    } catch (err) {
+      console.error('Error creating drill:', err);
+      setError(err.message);
+      return { success: false, message: err.message };
+    }
+  };
+
+  const updateDrill = async (id, drillData) => {
+    try {
+      const token = await window.Clerk.session.getToken();
+      const response = await fetch(`${API_BASE}/workout-overview/drills/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(drillData)
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      if (data.success) {
+        return { success: true, drill: data.drill, message: data.message };
+      } else {
+        setError(data.message);
+        return { success: false, message: data.message };
+      }
+    } catch (err) {
+      console.error('Error updating drill:', err);
+      setError(err.message);
+      return { success: false, message: err.message };
+    }
+  };
+
+  const deleteDrill = async (id) => {
+    try {
+      const token = await window.Clerk.session.getToken();
+      const response = await fetch(`${API_BASE}/workout-overview/drills/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      if (data.success) {
+        return { success: true, message: data.message };
+      } else {
+        setError(data.message);
+        return { success: false, message: data.message };
+      }
+    } catch (err) {
+      console.error('Error deleting drill:', err);
+      setError(err.message);
+      return { success: false, message: err.message };
+    }
+  };
+
+  // Category Management Functions
+  const fetchCategories = async () => {
+    setCategoriesLoading(true);
+    try {
+      const token = await window.Clerk.session.getToken();
+      const response = await fetch(`${API_BASE}/workout-overview/categories`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      if (data.success) {
+        setCategories(data.categories);
+        return { success: true, categories: data.categories };
+      } else {
+        setError(data.message);
+        return { success: false, message: data.message };
+      }
+    } catch (err) {
+      console.error('Error fetching categories:', err);
+      setError(err.message);
+      return { success: false, message: err.message };
+    } finally {
+      setCategoriesLoading(false);
+    }
+  };
+
+  const createCategory = async (categoryData) => {
+    try {
+      const token = await window.Clerk.session.getToken();
+      const response = await fetch(`${API_BASE}/workout-overview/categories`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(categoryData)
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      if (data.success) {
+        return { success: true, category: data.category, message: data.message };
+      } else {
+        setError(data.message);
+        return { success: false, message: data.message };
+      }
+    } catch (err) {
+      console.error('Error creating category:', err);
+      setError(err.message);
+      return { success: false, message: err.message };
+    }
+  };
+
+  const updateCategory = async (id, categoryData) => {
+    try {
+      const token = await window.Clerk.session.getToken();
+      const response = await fetch(`${API_BASE}/workout-overview/categories/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(categoryData)
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      if (data.success) {
+        return { success: true, category: data.category, message: data.message };
+      } else {
+        setError(data.message);
+        return { success: false, message: data.message };
+      }
+    } catch (err) {
+      console.error('Error updating category:', err);
+      setError(err.message);
+      return { success: false, message: err.message };
+    }
+  };
+
+  const deleteCategory = async (id) => {
+    try {
+      const token = await window.Clerk.session.getToken();
+      const response = await fetch(`${API_BASE}/workout-overview/categories/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      if (data.success) {
+        return { success: true, message: data.message };
+      } else {
+        setError(data.message);
+        return { success: false, message: data.message };
+      }
+    } catch (err) {
+      console.error('Error deleting category:', err);
+      setError(err.message);
+      return { success: false, message: err.message };
+    }
+  };
+
+  // Upload media to Cloudinary
+  const uploadDrillMedia = async (file) => {
+    try {
+      const token = await window.Clerk.session.getToken();
+      const formData = new FormData();
+      formData.append('media', file);
+
+      const response = await fetch(`${API_BASE}/workout-overview/drills/upload`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: formData
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      if (data.success) {
+        return {
+          success: true,
+          videoUrl: data.videoUrl,
+          mediaType: data.mediaType,
+          mediaPublicId: data.mediaPublicId,
+          thumbnailUrl: data.thumbnailUrl || null,
+          message: data.message
+        };
+      } else {
+        setError(data.message);
+        return { success: false, message: data.message };
+      }
+    } catch (err) {
+      console.error('Error uploading media:', err);
+      setError(err.message);
+      return { success: false, message: err.message };
+    }
+  };
+
+  // Check user ban status
+  const checkUserBanStatus = useCallback(async () => {
+    if (!userId) return false;
+
+    try {
+      const response = await fetch(`${API_BASE}/users/status`, {
+        headers: {
+          'Authorization': `Bearer ${await window.Clerk.session.getToken()}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        return false; // User is not banned
+      } else if (data.message === 'Account suspended') {
+        // User is banned
+        setBanAlert({
+          message: 'Your account has been suspended',
+          reason: data.reason || 'Your account has been suspended. Please contact support.'
+        });
+        return true; // User is banned
+      }
+    } catch (err) {
+      console.error('Error checking ban status:', err);
+    }
+    return false;
+  }, [API_BASE, userId]);
+
   const value = {
     workouts,
     nutrition,
@@ -465,6 +989,7 @@ export const AppProvider = ({ children }) => {
     loading,
     error,
     dashboard,
+    user,
     fetchWorkouts,
     createWorkout,
     updateWorkout,
@@ -480,9 +1005,38 @@ export const AppProvider = ({ children }) => {
     fetchProgress,
     fetchGoals,
     fetchDashboard,
+    fetchUser,
     addProgressEntry,
     updateGoals,
-    setError
+    setError,
+    // Admin user management
+    allUsers,
+    usersLoading,
+    fetchAllUsers,
+    updateUser,
+    deleteUser,
+    toggleUserBan,
+    // Real-time ban alert
+    banAlert,
+    setBanAlert,
+    // Ban status check
+    checkUserBanStatus,
+    // Drill management
+    drills,
+    drillsLoading,
+    fetchDrills,
+    createDrill,
+    updateDrill,
+    deleteDrill,
+    // Category management
+    categories,
+    categoriesLoading,
+    fetchCategories,
+    createCategory,
+    updateCategory,
+    deleteCategory,
+    // Media upload
+    uploadDrillMedia
   };
 
   return (

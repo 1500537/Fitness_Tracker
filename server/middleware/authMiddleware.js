@@ -1,5 +1,5 @@
 import User from "../models/userModal.js";
-export const protect = async (req, res, next) => { 
+export const protect = async (req, res, next) => {
     try {
         const authData = req.auth; // Agar @clerk/express hai to req.auth kafi hai
         const userId = authData?.userId;
@@ -13,6 +13,7 @@ export const protect = async (req, res, next) => {
             return res.json({ success: false, message: "User not in Database" });
         }
 
+        // Don't block banned users here - let the app handle the ban alert
         req.user = user;
         next();
     } catch (error) {
