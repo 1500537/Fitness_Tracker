@@ -10,6 +10,8 @@ const connectDB = async () => {
         return;
     }
 
+    console.log("MONGODB_URI:", process.env.MONGODB_URI);
+
     try {
         // Mongoose settings
         mongoose.set('strictQuery', true);

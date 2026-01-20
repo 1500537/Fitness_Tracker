@@ -11,7 +11,7 @@ import {
     deleteCategory
 } from '../controllers/workoutOverviewController.js';
 import { protect } from '../middleware/authMiddleware.js';
-import upload from '../middleware/uploadMiddleware.js';
+import upload, { handleMulterError } from '../middleware/uploadMiddleware.js';
 
 const router = express.Router();
 
@@ -29,7 +29,7 @@ router.put('/drills/:id', protect, updateAdminDrill);
 router.delete('/drills/:id', protect, deleteAdminDrill);
 
 // POST /api/workout-overview/drills/upload - Upload media for drill
-router.post('/drills/upload', protect, upload.single('media'), uploadDrillMedia);
+router.post('/drills/upload', protect, upload.single('media'), handleMulterError, uploadDrillMedia);
 
 // ===== CATEGORY ROUTES =====
 // GET /api/workout-overview/categories - Get all categories

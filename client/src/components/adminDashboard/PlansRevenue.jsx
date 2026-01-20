@@ -2,59 +2,74 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence, useScroll, useSpring, useTransform } from 'framer-motion';
 import { 
   TrendingUp, Calendar, Clock, DollarSign, Users, Activity, Zap, Layers,
-  Filter, Download, Maximize2, RefreshCcw, AlertCircle, Timer, ShieldCheck, Mail, Cpu, Globe
+  Filter, Download, Maximize2, RefreshCcw, AlertCircle, Timer, ShieldCheck, Mail, Cpu, Globe,
+  Edit, Trash2, Plus, X, Check
 } from 'lucide-react';
 import { 
   AreaChart, Area, XAxis, YAxis, CartesianGrid, 
   Tooltip, ResponsiveContainer 
 } from 'recharts';
-import { pricingData, INITIAL_SUBSCRIPTIONS } from '../../assets/assets';
+import { pricingData } from '../../assets/assets';
+import { useAppContext } from '../../context/useAppContext';
+import CustomPopUp from './CustomPopUp';
 
 const PlansRevenue = () => {
-  const [data, setData] = useState(Array.from({ length: 12 }, (_, i) => ({
-    name: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][i],
-    revenue: Math.floor(Math.random() * 5000) + 2000,
-  })));
+  const { 
+    revenueData, 
+    revenueLoading, 
+    fetchRevenueData,
+    createSubscription,
+    updateSubscription,
+    deleteSubscription,
+    extendSubscription,
+    cancelSubscription,
+    allUsers,
+    fetchAllUsers
+  } = useAppContext();
   
   const [currentTime, setCurrentTime] = useState(new Date());
   const [activePlan, setActivePlan] = useState(null);
-  const [persistentSubs, setPersistentSubs] = useState([]);
+  const [showModal, setShowModal] = useState(false);
+  const [modalType, setModalType] = useState('');
+  const [selectedSubscription, setSelectedSubscription] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [formData, setFormData] = useState({
+    userId: '',
+    planName: 'Basic',
+    duration: 30
+  });
   const containerRef = useRef(null);
 
-  // Scroll Progress for 3D entry effects
   const { scrollYProgress } = useScroll();
   const scaleX = useSpring(scrollYProgress, { stiffness: 100, damping: 30, restDelta: 0.001 });
 
-  // --- PERSISTENCE ENGINE ---
   useEffect(() => {
-    const savedStartTime = localStorage.getItem('session_start_time');
-    let sessionStart = savedStartTime ? parseInt(savedStartTime) : new Date().getTime();
-    if (!savedStartTime) localStorage.setItem('session_start_time', sessionStart.toString());
-
-    setPersistentSubs(INITIAL_SUBSCRIPTIONS.map(sub => {
-      const duration = new Date(sub.end).getTime() - new Date(sub.start).getTime();
-      return { ...sub, calculatedStart: sessionStart, calculatedEnd: sessionStart + duration };
-    }));
-  }, []);
+    fetchRevenueData();
+    if (!allUsers || allUsers.length === 0) {
+      fetchAllUsers();
+    }
+  }, [fetchRevenueData, fetchAllUsers, allUsers]);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
-  const getSubscriptionStatus = (start, end) => {
+  const getSubscriptionStatus = (endDate) => {
     const now = currentTime.getTime();
-    const total = end - start;
+    const end = new Date(endDate).getTime();
     const remaining = end - now;
-    const progress = Math.max(0, (remaining / total) * 100);
+    
     if (remaining <= 0) return { timeStr: "EXPIRED", percent: 0, color: "text-red-500", bg: "bg-red-600/50" };
     
-    const hours = Math.floor(remaining / 3600000);
-    const mins = Math.floor((remaining % 3600000) / 60000);
-    const secs = Math.floor((remaining % 60000) / 1000);
+    const days = Math.floor(remaining / (24 * 60 * 60 * 1000));
+    const hours = Math.floor((remaining % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
+    const mins = Math.floor((remaining % (60 * 60 * 1000)) / (60 * 1000));
+    
+    const progress = Math.min(100, (remaining / (30 * 24 * 60 * 60 * 1000)) * 100);
     
     return {
-      timeStr: `${hours}h ${mins}m ${secs}s`,
+      timeStr: days > 0 ? `${days}d ${hours}h` : `${hours}h ${mins}m`,
       percent: progress,
       color: progress < 20 ? "text-red-400 shadow-[0_0_10px_#ef4444]" : "text-[#FF7222]",
       bg: progress < 20 ? "bg-red-500" : "bg-[#FF7222]"
@@ -62,12 +77,81 @@ const PlansRevenue = () => {
   };
 
   const resetSession = () => {
-    localStorage.removeItem('session_start_time');
-    window.location.reload();
+    fetchRevenueData();
+  };
+
+  const openModal = (type, subscription = null) => {
+    setModalType(type);
+    setSelectedSubscription(subscription);
+    if (type === 'edit' && subscription) {
+      setFormData({
+        userId: subscription.userId || '',
+        planName: subscription.planName || 'Basic',
+        duration: 30
+      });
+    } else {
+      setFormData({ userId: '', planName: 'Basic', duration: 30 });
+    }
+    setShowModal(true);
+  };
+
+  const closeModal = () => {
+    setShowModal(false);
+    setSelectedSubscription(null);
+    setFormData({ userId: '', planName: 'Basic', duration: 30 });
+  };
+
+  const handleSubmit = async () => {
+    setLoading(true);
+    let result;
+
+    try {
+      switch (modalType) {
+        case 'create':
+          result = await createSubscription(formData);
+          break;
+        case 'edit':
+          result = await updateSubscription(selectedSubscription.id, formData);
+          break;
+        case 'delete':
+          result = await deleteSubscription(selectedSubscription.id);
+          break;
+        case 'extend':
+          result = await extendSubscription(selectedSubscription.id, formData.duration);
+          break;
+        case 'cancel':
+          result = await cancelSubscription(selectedSubscription.id);
+          break;
+        default:
+          return;
+      }
+
+      if (result?.success) {
+        closeModal();
+        fetchRevenueData(); // Refresh data
+      }
+    } catch (error) {
+      console.error('Operation failed:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div ref={containerRef} className="min-h-screen bg-[#050505] text-white selection:bg-[#FF7222] overflow-x-hidden relative font-sans perspective-1000">
+      
+      {/* Debug Info */}
+      {revenueLoading && (
+        <div className="fixed top-20 right-4 bg-[#FF7222] text-black px-4 py-2 rounded-lg z-50">
+          Loading revenue data...
+        </div>
+      )}
+      
+      {!revenueData && !revenueLoading && (
+        <div className="fixed top-20 right-4 bg-red-500 text-white px-4 py-2 rounded-lg z-50">
+          No revenue data - Check connection
+        </div>
+      )}
       
       {/* --- 3D GLOBAL PROGRESS BAR --- */}
       <motion.div className="fixed top-0 left-0 right-0 h-1 bg-[#FF7222] z-[100] origin-left shadow-[0_0_20px_#FF7222]" style={{ scaleX }} />
@@ -128,10 +212,10 @@ const PlansRevenue = () => {
         {/* --- 3D METRIC CARDS --- */}
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-8 mb-16">
           {[
-            { label: 'Revenue Magnitude', value: '$842,900', grow: '+12.5%', icon: DollarSign, color: '#FF7222' },
-            { label: 'Active Uplinks', value: persistentSubs.length, grow: '+3.2%', icon: Globe, color: '#3b82f6' },
-            { label: 'Sync Stability', value: '99.9%', grow: '+0.1%', icon: Cpu, color: '#10b981' },
-            { label: 'Power Draw', value: '24.8kW', grow: '+5.4%', icon: Zap, color: '#f59e0b' },
+            { label: 'Revenue Magnitude', value: revenueData?.metrics?.totalRevenue ? `$${revenueData.metrics.totalRevenue.toLocaleString()}` : '$0', grow: '+12.5%', icon: DollarSign, color: '#FF7222' },
+            { label: 'Active Uplinks', value: revenueData?.metrics?.activeSubscriptions || 0, grow: '+3.2%', icon: Globe, color: '#3b82f6' },
+            { label: 'Sync Stability', value: revenueData?.metrics?.conversionRate || '99.9%', grow: '+0.1%', icon: Cpu, color: '#10b981' },
+            { label: 'Power Draw', value: revenueData?.metrics?.powerConsumption || '24.8kW', grow: '+5.4%', icon: Zap, color: '#f59e0b' },
           ].map((metric, i) => (
             <motion.div 
               key={i}
@@ -159,166 +243,190 @@ const PlansRevenue = () => {
           ))}
         </div>
 
-        {/* --- MAIN ANALYTICS SECTION --- */}
+        {/* --- REVENUE CHART SECTION --- */}
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 mb-16">
           <motion.div 
             initial={{ scale: 0.9, opacity: 0 }}
             whileInView={{ scale: 1, opacity: 1 }}
             className="xl:col-span-2 bg-black/40 backdrop-blur-3xl p-10 rounded-[3.5rem] border border-white/10 relative group"
           >
-            <div className="flex justify-between items-center mb-12">
-              <h3 className="text-2xl font-[1000] italic uppercase flex items-center gap-4">
-                <Activity className="text-[#FF7222] animate-pulse" /> Revenue Neural Map
-              </h3>
+            <div className="flex justify-between items-center mb-8">
+              <h3 className="text-2xl font-bold text-[#FF7222]">Revenue Analytics</h3>
               <div className="flex gap-2">
-                {[1, 2, 3].map(i => <div key={i} className="w-1.5 h-1.5 rounded-full bg-[#FF7222]/30" />)}
+                <button className="px-4 py-2 bg-[#FF7222]/20 text-[#FF7222] rounded-lg text-sm">7D</button>
+                <button className="px-4 py-2 bg-white/5 text-gray-400 rounded-lg text-sm">30D</button>
+                <button className="px-4 py-2 bg-white/5 text-gray-400 rounded-lg text-sm">90D</button>
               </div>
             </div>
-            <div className="h-[450px] w-full">
+            <div className="h-80">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={data}>
+                <AreaChart data={revenueData?.chartData || []}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                  <XAxis dataKey="date" stroke="#666" />
+                  <YAxis stroke="#666" />
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: '#000', 
+                      border: '1px solid #FF7222', 
+                      borderRadius: '10px' 
+                    }} 
+                  />
+                  <Area 
+                    type="monotone" 
+                    dataKey="revenue" 
+                    stroke="#FF7222" 
+                    fill="url(#colorRevenue)" 
+                  />
                   <defs>
-                    <linearGradient id="color3D" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#FF7222" stopOpacity={0.4}/>
-                      <stop offset="100%" stopColor="#FF7222" stopOpacity={0}/>
+                    <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#FF7222" stopOpacity={0.8}/>
+                      <stop offset="95%" stopColor="#FF7222" stopOpacity={0}/>
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#ffffff05" vertical={false} />
-                  <XAxis dataKey="name" stroke="#333" fontSize={10} axisLine={false} tickLine={false} />
-                  <YAxis stroke="#333" fontSize={10} axisLine={false} tickLine={false} />
-                  <Tooltip 
-                    cursor={{ stroke: '#FF7222', strokeWidth: 1 }}
-                    contentStyle={{ backgroundColor: '#000', border: '1px solid #FF7222', borderRadius: '12px', color: '#fff' }}
-                  />
-                  <Area type="monotone" dataKey="revenue" stroke="#FF7222" strokeWidth={5} fill="url(#color3D)" animationDuration={2000} />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
           </motion.div>
 
+          {/* --- QUICK STATS --- */}
           <motion.div 
-            initial={{ x: 50, opacity: 0 }}
+            initial={{ x: 100, opacity: 0 }}
             whileInView={{ x: 0, opacity: 1 }}
-            className="bg-white/[0.02] backdrop-blur-3xl p-10 rounded-[3.5rem] border border-white/10 shadow-2xl"
+            className="bg-black/40 backdrop-blur-3xl p-8 rounded-[3rem] border border-white/10"
           >
-            <h3 className="text-2xl font-[1000] italic uppercase mb-10 flex items-center gap-3">
-              <Layers size={24} className="text-blue-500" /> Tier Load
-            </h3>
-            <div className="space-y-8">
-              {pricingData.map((plan, i) => (
-                <motion.div 
-                  key={i}
-                  whileHover={{ x: 10 }}
-                  className="relative group p-6 rounded-2xl bg-black/40 border border-white/5 overflow-hidden"
-                >
-                  <div className="flex justify-between items-center mb-4 relative z-10">
-                    <span className="text-[11px] font-black uppercase italic tracking-tighter text-gray-300">{plan.name}</span>
-                    <span className="text-[#FF7222] font-black text-xs">ACTIVE</span>
+            <h3 className="text-xl font-bold mb-6 text-[#FF7222]">Quick Stats</h3>
+            <div className="space-y-6">
+              {[
+                { label: 'Today Revenue', value: '$2,847', change: '+15.3%' },
+                { label: 'New Subscriptions', value: '23', change: '+8.1%' },
+                { label: 'Churn Rate', value: '2.1%', change: '-0.5%' },
+                { label: 'Avg. Revenue/User', value: '$124', change: '+12.7%' }
+              ].map((stat, i) => (
+                <div key={i} className="flex justify-between items-center p-4 bg-white/5 rounded-xl">
+                  <div>
+                    <p className="text-xs text-gray-400 uppercase tracking-wide">{stat.label}</p>
+                    <p className="text-lg font-bold">{stat.value}</p>
                   </div>
-                  <div className="h-1.5 w-full bg-white/5 rounded-full relative z-10">
-                    <motion.div 
-                      initial={{ width: 0 }}
-                      whileInView={{ width: `${Math.random() * 60 + 40}%` }}
-                      className="h-full bg-gradient-to-r from-[#FF7222] to-white shadow-[0_0_15px_#FF7222]"
-                    />
-                  </div>
-                  <div className="absolute inset-0 bg-[#FF7222]/5 opacity-0 group-hover:opacity-100 transition-opacity" />
-                </motion.div>
+                  <span className={`text-xs px-2 py-1 rounded ${
+                    stat.change.startsWith('+') ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
+                  }`}>
+                    {stat.change}
+                  </span>
+                </div>
               ))}
             </div>
           </motion.div>
         </div>
 
-        {/* --- 3D LIVE SURVEILLANCE TERMINAL --- */}
+        {/* --- SUBSCRIPTION PLANS TABLE --- */}
         <motion.div 
-          initial={{ y: 100, opacity: 0 }}
+          initial={{ y: 50, opacity: 0 }}
           whileInView={{ y: 0, opacity: 1 }}
-          className="bg-gradient-to-b from-white/[0.05] to-transparent backdrop-blur-3xl rounded-[4rem] border border-white/10 overflow-hidden shadow-[0_50px_100px_rgba(0,0,0,0.8)]"
+          className="bg-black/40 backdrop-blur-3xl p-10 rounded-[3.5rem] border border-white/10 mb-16"
         >
-          <div className="p-12 border-b border-white/5 flex flex-wrap justify-between items-end gap-6">
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
-                <span className="text-red-500 text-[10px] font-black uppercase tracking-widest">Live Uplink Stream</span>
-              </div>
-              <h3 className="text-4xl font-[1000] italic uppercase tracking-tighter">Satellite Surveillance</h3>
-            </div>
+          <div className="flex justify-between items-center mb-8">
+            <h3 className="text-2xl font-bold text-[#FF7222]">Active Subscriptions</h3>
             <div className="flex gap-4">
-              <button className="flex items-center gap-2 bg-white/5 px-6 py-3 rounded-full text-[10px] font-black border border-white/10 hover:bg-white/10 transition-all uppercase">
-                <Filter size={14} /> Refine Feed
+              <button 
+                onClick={() => openModal('create')}
+                className="flex items-center gap-2 px-4 py-2 bg-[#FF7222] text-black rounded-lg font-semibold hover:bg-[#FF7222]/80 transition-colors"
+              >
+                <Plus size={16} /> Add Subscription
+              </button>
+              <button className="flex items-center gap-2 px-4 py-2 bg-white/10 text-white rounded-lg hover:bg-white/20 transition-colors">
+                <Filter size={16} /> Filter
               </button>
             </div>
           </div>
-
-          <div className="overflow-x-auto custom-scrollbar">
-            <table className="w-full text-left border-collapse min-w-[1100px]">
+          
+          <div className="overflow-x-auto">
+            <table className="w-full">
               <thead>
-                <tr className="text-[10px] font-black uppercase text-gray-500 tracking-[0.4em] bg-black/40 border-b border-white/5">
-                  <th className="px-12 py-8">User Entity</th>
-                  <th className="px-10 py-8">Protocol</th>
-                  <th className="px-10 py-8">Magnitude</th>
-                  <th className="px-10 py-8">Neural Lifespan</th>
-                  <th className="px-12 py-8 text-right">Verification</th>
+                <tr className="border-b border-white/10">
+                  <th className="text-left py-4 px-6 text-xs font-bold uppercase tracking-wide text-gray-400">User</th>
+                  <th className="text-left py-4 px-6 text-xs font-bold uppercase tracking-wide text-gray-400">Plan</th>
+                  <th className="text-left py-4 px-6 text-xs font-bold uppercase tracking-wide text-gray-400">Status</th>
+                  <th className="text-left py-4 px-6 text-xs font-bold uppercase tracking-wide text-gray-400">Revenue</th>
+                  <th className="text-left py-4 px-6 text-xs font-bold uppercase tracking-wide text-gray-400">Expires</th>
+                  <th className="text-left py-4 px-6 text-xs font-bold uppercase tracking-wide text-gray-400">Actions</th>
                 </tr>
               </thead>
-              <tbody className="text-[13px] font-bold uppercase italic tabular-nums">
-                {persistentSubs.map((sub, i) => {
-                  const status = getSubscriptionStatus(sub.calculatedStart, sub.calculatedEnd);
-                  
+              <tbody>
+                {(revenueData?.subscriptions || []).map((sub, i) => {
+                  const status = getSubscriptionStatus(sub.endDate);
                   return (
                     <motion.tr 
-                      key={sub.id}
+                      key={sub.id || i}
                       initial={{ opacity: 0, x: -20 }}
-                      whileInView={{ opacity: 1, x: 0 }}
-                      transition={{ delay: i * 0.05 }}
-                      whileHover={{ backgroundColor: 'rgba(255,114,34,0.03)' }}
-                      className="border-b border-white/5 group transition-colors"
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: i * 0.1 }}
+                      className="border-b border-white/5 hover:bg-white/5 transition-colors"
                     >
-                      <td className="px-12 py-8">
-                        <div className="flex items-center gap-5">
-                          <div className={`w-12 h-12 rounded-2xl bg-black border border-white/10 flex items-center justify-center text-[#FF7222] shadow-inner group-hover:scale-110 transition-transform`}>
-                             <Users size={20} />
+                      <td className="py-4 px-6">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 bg-[#FF7222] rounded-full flex items-center justify-center text-black font-bold text-sm">
+                            {sub.userName?.charAt(0) || 'U'}
                           </div>
-                          <div className="flex flex-col">
-                            <span className="text-lg font-[1000] tracking-tighter text-white group-hover:text-[#FF7222] transition-colors">{sub.user}</span>
-                            <span className="text-[9px] font-black text-gray-500 lowercase not-italic tracking-wider opacity-60 flex items-center gap-1">
-                              <Mail size={10} /> {sub.user.toLowerCase()}@uplink.io
-                            </span>
+                          <div>
+                            <p className="font-semibold">{sub.userName || 'Unknown User'}</p>
+                            <p className="text-xs text-gray-400">{sub.userEmail || 'No email'}</p>
                           </div>
                         </div>
                       </td>
-                      <td className="px-10 py-8">
-                        <span className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-[9px] font-black tracking-widest">{sub.plan}</span>
+                      <td className="py-4 px-6">
+                        <span className="px-3 py-1 bg-[#FF7222]/20 text-[#FF7222] rounded-full text-sm font-semibold">
+                          {sub.planName || 'Basic'}
+                        </span>
                       </td>
-                      <td className="px-10 py-8">
-                        <div className="text-[#FF7222] text-xl font-[1000] drop-shadow-[0_0_10px_rgba(255,114,34,0.3)]">
-                           {sub.plan === 'Elite Force' ? '$499' : sub.plan === 'Premium' ? '$199' : '$49'}
+                      <td className="py-4 px-6">
+                        <div className="flex items-center gap-2">
+                          <div className={`w-2 h-2 rounded-full ${status.bg}`}></div>
+                          <span className={`text-sm font-semibold ${status.color}`}>
+                            {status.timeStr}
+                          </span>
                         </div>
                       </td>
-                      <td className="px-10 py-8">
-                        <div className="min-w-[180px]">
-                          <div className={`text-[16px] font-[1000] mb-2 ${status.color}`}>{status.timeStr}</div>
-                          <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden border border-white/5 shadow-inner">
-                            <motion.div 
-                              className={`h-full ${status.bg} shadow-[0_0_10px_currentColor]`}
-                              animate={{ width: `${status.percent}%` }}
-                              transition={{ duration: 1, ease: "linear" }}
-                            />
-                          </div>
-                        </div>
+                      <td className="py-4 px-6">
+                        <span className="font-bold text-green-400">
+                          ${sub.amount || '0'}
+                        </span>
                       </td>
-                      <td className="px-12 py-8 text-right">
-                        <AnimatePresence mode="wait">
-                          <motion.div 
-                            key={status.timeStr}
-                            initial={{ scale: 0.8, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            className={`inline-flex items-center gap-3 px-6 py-3 rounded-2xl border font-black text-[10px] tracking-widest ${status.timeStr === "EXPIRED" ? 'text-red-500 bg-red-500/10 border-red-500/20' : 'text-green-500 bg-green-500/10 border-green-500/20'}`}
+                      <td className="py-4 px-6">
+                        <span className="text-sm text-gray-400">
+                          {new Date(sub.endDate).toLocaleDateString()}
+                        </span>
+                      </td>
+                      <td className="py-4 px-6">
+                        <div className="flex gap-2">
+                          <button 
+                            onClick={() => openModal('edit', sub)}
+                            className="p-2 bg-blue-500/20 text-blue-400 rounded-lg hover:bg-blue-500/30 transition-colors"
+                            title="Edit"
                           >
-                            {status.timeStr === "EXPIRED" ? <AlertCircle size={14} /> : <ShieldCheck size={14} className="animate-pulse" />} 
-                            {status.timeStr === "EXPIRED" ? "NODE_TERMINATED" : "VERIFIED_ACTIVE"}
-                          </motion.div>
-                        </AnimatePresence>
+                            <Edit size={14} />
+                          </button>
+                          <button 
+                            onClick={() => openModal('extend', sub)}
+                            className="p-2 bg-yellow-500/20 text-yellow-400 rounded-lg hover:bg-yellow-500/30 transition-colors"
+                            title="Extend"
+                          >
+                            <Timer size={14} />
+                          </button>
+                          <button 
+                            onClick={() => openModal('cancel', sub)}
+                            className="p-2 bg-orange-500/20 text-orange-400 rounded-lg hover:bg-orange-500/30 transition-colors"
+                            title="Cancel"
+                          >
+                            <AlertCircle size={14} />
+                          </button>
+                          <button 
+                            onClick={() => openModal('delete', sub)}
+                            className="p-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors"
+                            title="Delete"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
                       </td>
                     </motion.tr>
                   );
@@ -327,16 +435,147 @@ const PlansRevenue = () => {
             </table>
           </div>
         </motion.div>
+
+        {/* --- PRICING PLANS MANAGEMENT --- */}
+        <motion.div 
+          initial={{ scale: 0.95, opacity: 0 }}
+          whileInView={{ scale: 1, opacity: 1 }}
+          className="bg-black/40 backdrop-blur-3xl p-10 rounded-[3.5rem] border border-white/10"
+        >
+          <div className="flex justify-between items-center mb-8">
+            <h3 className="text-2xl font-bold text-[#FF7222]">Pricing Plans</h3>
+            <button className="flex items-center gap-2 px-4 py-2 bg-[#FF7222] text-black rounded-lg font-semibold hover:bg-[#FF7222]/80 transition-colors">
+              <Layers size={16} /> Create Plan
+            </button>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {pricingData.map((plan, i) => (
+              <motion.div 
+                key={plan.id || i}
+                whileHover={{ scale: 1.02, y: -5 }}
+                className="bg-white/5 backdrop-blur-xl p-6 rounded-2xl border border-white/10 relative overflow-hidden group cursor-pointer"
+              >
+                {plan.popular && (
+                  <div className="absolute top-4 right-4 px-2 py-1 bg-[#FF7222] text-black text-xs font-bold rounded-full">
+                    POPULAR
+                  </div>
+                )}
+                <div className="mb-6">
+                  <h4 className="text-xl font-bold mb-2">{plan.name}</h4>
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-3xl font-bold text-[#FF7222]">${plan.price}</span>
+                    <span className="text-gray-400">/{plan.duration}</span>
+                  </div>
+                </div>
+                
+                <ul className="space-y-3 mb-6">
+                  {plan.features?.map((feature, fi) => (
+                    <li key={fi} className="flex items-center gap-2 text-sm">
+                      <ShieldCheck size={16} className="text-[#FF7222]" />
+                      {feature}
+                    </li>
+                  ))}
+                </ul>
+                
+                <div className="flex gap-2">
+                  <button className="flex-1 py-2 bg-[#FF7222] text-black rounded-lg font-semibold hover:bg-[#FF7222]/80 transition-colors">
+                    Edit
+                  </button>
+                  <button className="px-4 py-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors">
+                    Delete
+                  </button>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </motion.div>
       </div>
 
-      <style jsx>{`
-        .custom-scrollbar::-webkit-scrollbar { height: 6px; width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: #050505; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #1a1a1a; border-radius: 10px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #FF7222; }
-        .perspective-1000 { perspective: 1000px; }
-        .transform-style-3d { transform-style: preserve-3d; }
-      `}</style>
+      {/* CustomPopUp Integration */}
+      <CustomPopUp
+        isOpen={showModal}
+        onClose={closeModal}
+        onConfirm={handleSubmit}
+        type={modalType === 'delete' || modalType === 'cancel' ? 'delete' : modalType === 'create' ? 'add' : 'edit'}
+        title={`${modalType.toUpperCase()} SUBSCRIPTION`}
+        confirmText={modalType === 'delete' ? 'DELETE' : modalType === 'cancel' ? 'CANCEL' : modalType === 'extend' ? 'EXTEND' : modalType === 'edit' ? 'UPDATE' : 'CREATE'}
+        loading={loading}
+      >
+        <div className="space-y-4">
+          {modalType === 'create' || modalType === 'edit' ? (
+            <>
+              <div>
+                <label className="block text-sm font-medium mb-2 text-gray-300">User</label>
+                <select
+                  value={formData.userId}
+                  onChange={(e) => setFormData({ ...formData, userId: e.target.value })}
+                  className="w-full p-3 bg-white/5 border border-white/10 rounded-lg focus:border-[#FF7222] focus:outline-none text-white"
+                  required
+                >
+                  <option value="" className="bg-black">Select User</option>
+                  {allUsers?.map(user => (
+                    <option key={user._id} value={user._id} className="bg-black">
+                      {user.username} ({user.email})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2 text-gray-300">Plan</label>
+                <select
+                  value={formData.planName}
+                  onChange={(e) => setFormData({ ...formData, planName: e.target.value })}
+                  className="w-full p-3 bg-white/5 border border-white/10 rounded-lg focus:border-[#FF7222] focus:outline-none text-white"
+                >
+                  <option value="Basic" className="bg-black">Basic - $49</option>
+                  <option value="Premium" className="bg-black">Premium - $199</option>
+                  <option value="Elite Force" className="bg-black">Elite Force - $499</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2 text-gray-300">Duration (days)</label>
+                <input
+                  type="number"
+                  value={formData.duration}
+                  onChange={(e) => setFormData({ ...formData, duration: parseInt(e.target.value) })}
+                  className="w-full p-3 bg-white/5 border border-white/10 rounded-lg focus:border-[#FF7222] focus:outline-none text-white"
+                  min="1"
+                  max="365"
+                />
+              </div>
+            </>
+          ) : modalType === 'extend' ? (
+            <div>
+              <label className="block text-sm font-medium mb-2 text-gray-300">Extend by (days)</label>
+              <input
+                type="number"
+                value={formData.duration}
+                onChange={(e) => setFormData({ ...formData, duration: parseInt(e.target.value) })}
+                className="w-full p-3 bg-white/5 border border-white/10 rounded-lg focus:border-[#FF7222] focus:outline-none text-white"
+                min="1"
+                max="365"
+              />
+            </div>
+          ) : (
+            <div className="text-center py-4">
+              <p className="text-gray-300 mb-2">
+                Are you sure you want to {modalType} this subscription?
+              </p>
+              {selectedSubscription && (
+                <div className="bg-white/5 rounded-lg p-4 mt-4">
+                  <p className="text-sm text-gray-400">User: {selectedSubscription.userName}</p>
+                  <p className="text-sm text-gray-400">Plan: {selectedSubscription.planName}</p>
+                  <p className="text-sm text-gray-400">Amount: ${selectedSubscription.amount}</p>
+                </div>
+              )}
+              {modalType === 'delete' && (
+                <p className="text-red-400 text-sm mt-2">This action cannot be undone.</p>
+              )}
+            </div>
+          )}
+        </div>
+      </CustomPopUp>
     </div>
   );
 };

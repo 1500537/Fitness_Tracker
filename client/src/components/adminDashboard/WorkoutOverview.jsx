@@ -30,8 +30,11 @@ const WorkoutOverview = () => {
   const [isAddingCat, setIsAddingCat] = useState(false);
   const [newCatName, setNewCatName] = useState('');
   const [modal, setModal] = useState({ isOpen: false, type: 'edit', data: null });
+  const [confirmModal, setConfirmModal] = useState({ isOpen: false, type: 'confirm', action: null, message: '' });
+  const [successModal, setSuccessModal] = useState({ isOpen: false, message: '', details: '' });
   const [searchTerm, setSearchTerm] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
   
   // Ref for hidden file input
   const fileInputRef = useRef(null);
@@ -68,8 +71,14 @@ const WorkoutOverview = () => {
     const file = e.target.files[0];
     if (!file) return;
 
+    console.log('File selected:', { name: file.name, size: file.size, type: file.type });
+
     // Check file type
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'video/mp4', 'video/webm', 'video/ogg', 'video/avi', 'video/mov'];
+    const allowedTypes = [
+      'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp',
+      'video/mp4', 'video/webm', 'video/ogg', 'video/avi', 'video/mov', 'video/quicktime'
+    ];
+    
     if (!allowedTypes.includes(file.type)) {
       setError('Invalid file type. Only images (JPEG, PNG, GIF, WebP) and videos (MP4, WebM, OGG, AVI, MOV) are allowed.');
       return;
@@ -85,10 +94,13 @@ const WorkoutOverview = () => {
     }
 
     setUploading(true);
-    setError(null); // Clear any previous errors
+    setError(null);
 
     try {
+      console.log('Starting upload...');
       const result = await uploadDrillMedia(file);
+      console.log('Upload result:', result);
+      
       if (result.success) {
         // Update modal data with uploaded media
         setModal(prev => ({
@@ -98,7 +110,7 @@ const WorkoutOverview = () => {
             videoUrl: result.videoUrl,
             mediaType: result.mediaType,
             mediaPublicId: result.mediaPublicId,
-            thumbnailUrl: result.thumbnailUrl || null // For video thumbnails
+            thumbnailUrl: result.thumbnailUrl || null
           }
         }));
 
@@ -106,7 +118,17 @@ const WorkoutOverview = () => {
         if (fileInputRef.current) {
           fileInputRef.current.value = '';
         }
+        
+        console.log('Upload successful, modal updated');
+        
+        // Show success notification
+        setSuccessModal({
+          isOpen: true,
+          message: 'MEDIA UPLOADED',
+          details: `${file.name} has been uploaded to Cloudinary successfully`
+        });
       } else {
+        console.error('Upload failed:', result.message);
         setError(result.message || 'Upload failed');
       }
     } catch (error) {
@@ -121,6 +143,7 @@ const WorkoutOverview = () => {
     const { type, data } = modal;
     if (!data || !data.name) return;
 
+    setActionLoading(true);
     try {
       let result;
       if (type === 'add') {
@@ -133,16 +156,46 @@ const WorkoutOverview = () => {
 
       if (result && result.success) {
         setModal({ isOpen: false, type: 'edit', data: null });
-        if (result.message) {
-          alert(result.message);
-        }
+        
+        // Show success notification
+        const successMessages = {
+          add: { message: 'DRILL DEPLOYED SUCCESSFULLY', details: `"${data.name}" has been added to the training vault` },
+          edit: { message: 'DRILL RECALIBRATED', details: `"${data.name}" has been updated successfully` },
+          delete: { message: 'DRILL PURGED', details: `"${data.name}" has been removed from the system` }
+        };
+        
+        setSuccessModal({ 
+          isOpen: true, 
+          ...successMessages[type]
+        });
+        
+        // Force refresh data after successful operation
+        await fetchDrills();
+        await fetchCategories();
       } else {
-        alert(result?.message || 'Operation failed');
+        setError(result?.message || 'Operation failed');
       }
     } catch (error) {
       console.error('Action error:', error);
-      alert('Operation failed. Please try again.');
+      setError('Operation failed. Please try again.');
+    } finally {
+      setActionLoading(false);
     }
+  };
+
+  const confirmAction = (type, data) => {
+    const confirmMessages = {
+      add: `Deploy new drill "${data.name}" to the training system?`,
+      edit: `Apply changes to drill "${data.name}"?`,
+      delete: `Permanently remove drill "${data.name}" from the system? This action cannot be undone.`
+    };
+    
+    setConfirmModal({
+      isOpen: true,
+      type: 'confirm',
+      action: () => handleAction(),
+      message: confirmMessages[type] || 'Confirm this action?'
+    });
   };
 
   const addNewCategory = async () => {
@@ -154,12 +207,22 @@ const WorkoutOverview = () => {
         setModal({ ...modal, data: { ...modal.data, category: result.category.name } });
         setNewCatName('');
         setIsAddingCat(false);
+        
+        // Show success notification
+        setSuccessModal({
+          isOpen: true,
+          message: 'CATEGORY CREATED',
+          details: `"${result.category.name}" has been added to the system`
+        });
+        
+        // Refresh categories immediately
+        await fetchCategories();
       } else {
-        alert(result.message || 'Failed to create category');
+        setError(result.message || 'Failed to create category');
       }
     } catch (error) {
       console.error('Category creation error:', error);
-      alert('Failed to create category. Please try again.');
+      setError('Failed to create category. Please try again.');
     }
   };
 
@@ -246,16 +309,52 @@ const WorkoutOverview = () => {
           <AnimatePresence mode="popLayout">
             {filteredWorkouts.map((item) => (
               <motion.div layout key={item._id} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} className="group relative">
-                <div className="bg-[#080808] border border-white/5 hover:border-[#FF7222]/30 rounded-[3rem] p-8 sm:p-10 h-full flex flex-col transition-all">
-                  <div className="flex justify-between items-center mb-10">
-                    <div className="px-5 py-2 bg-white/5 rounded-full text-[9px] font-black uppercase text-[#FF7222]">{item.category}</div>
-                    <span className="text-[9px] font-black text-gray-600 uppercase">{item.pricing}</span>
-                  </div>
-                  <h3 className="text-3xl font-[1000] italic uppercase mb-6">{item.name}</h3>
-                  <div className="flex items-center gap-3 mb-10 opacity-60"><Tag size={14} className="text-[#FF7222]" /><span className="text-[10px] font-black uppercase">{item.tag || "GENERAL"}</span></div>
-                  <div className="flex gap-4 mt-auto">
-                    <button onClick={() => openModal('edit', item)} className="flex-1 bg-white/5 hover:bg-white text-black py-5 rounded-2xl text-[9px] font-black uppercase flex items-center justify-center gap-3"><Edit3 size={16} /> MODIFY</button>
-                    <button onClick={() => openModal('delete', item)} className="w-16 bg-red-600/10 text-red-500 border border-red-600/20 rounded-2xl flex items-center justify-center hover:bg-red-600 hover:text-white transition-all"><Trash2 size={20} /></button>
+                <div className="bg-[#080808] border border-white/5 hover:border-[#FF7222]/30 rounded-[3rem] p-8 sm:p-10 h-full flex flex-col transition-all overflow-hidden relative">
+                  
+                  {/* Background Media */}
+                  {item.videoUrl && (
+                    <div className="absolute inset-0 rounded-[3rem] overflow-hidden">
+                      {item.mediaType === 'video' ? (
+                        <video
+                          src={resolveStreamUrl(item.videoUrl)}
+                          autoPlay
+                          muted
+                          loop
+                          playsInline
+                          className="w-full h-full object-cover opacity-40 group-hover:opacity-50 transition-opacity duration-300"
+                        />
+                      ) : (
+                        <img
+                          src={resolveStreamUrl(item.videoUrl)}
+                          className="w-full h-full object-cover opacity-40 group-hover:opacity-50 transition-opacity duration-300"
+                          alt={item.name}
+                        />
+                      )}
+                      {/* Lighter overlay for better visibility */}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-black/20" />
+                    </div>
+                  )}
+                  
+                  {/* Content */}
+                  <div className="relative z-10">
+                    <div className="flex justify-between items-center mb-10">
+                      <div className="px-5 py-2 bg-white/10 backdrop-blur-sm rounded-full text-[9px] font-black uppercase text-[#FF7222] border border-white/10">{item.category}</div>
+                      <span className="text-[9px] font-black text-gray-300 uppercase bg-black/30 px-3 py-1 rounded-full backdrop-blur-sm">{item.pricing}</span>
+                    </div>
+                    <h3 className="text-3xl font-[1000] italic uppercase mb-6 text-white drop-shadow-lg">{item.name}</h3>
+                    <div className="flex items-center gap-3 mb-6 opacity-80">
+                      <Tag size={14} className="text-[#FF7222]" />
+                      <span className="text-[10px] font-black uppercase text-white">{item.tag || "GENERAL"}</span>
+                    </div>
+                    
+                    <div className="flex gap-4 mt-auto">
+                      <button onClick={() => openModal('edit', item)} className="flex-1 bg-white/10 hover:bg-white/20 backdrop-blur-sm text-white py-5 rounded-2xl text-[9px] font-black uppercase flex items-center justify-center gap-3 border border-white/10 transition-all">
+                        <Edit3 size={16} /> MODIFY
+                      </button>
+                      <button onClick={() => openModal('delete', item)} className="w-16 bg-red-600/20 text-red-400 border border-red-600/30 rounded-2xl flex items-center justify-center hover:bg-red-600/40 hover:text-red-300 transition-all backdrop-blur-sm">
+                        <Trash2 size={20} />
+                      </button>
+                    </div>
                   </div>
                 </div>
               </motion.div>
@@ -264,7 +363,15 @@ const WorkoutOverview = () => {
         </div>
 
         {/* MODAL */}
-        <CustomPopUp isOpen={modal.isOpen} onClose={() => setModal({ ...modal, isOpen: false, data: null })} onConfirm={handleAction} title={modal.title} type={modal.type} confirmText={modal.confirmText}>
+        <CustomPopUp 
+          isOpen={modal.isOpen} 
+          onClose={() => setModal({ ...modal, isOpen: false, data: null })} 
+          onConfirm={() => confirmAction(modal.type, modal.data)} 
+          title={modal.title} 
+          type={modal.type} 
+          confirmText={modal.confirmText}
+          loading={actionLoading}
+        >
           {modal.isOpen && modal.data && (
             modal.type === 'delete' ? (
               <div className="text-center py-10"><Trash2 size={40} className="text-red-500 mx-auto mb-6"/><h4 className="text-3xl font-black italic uppercase text-white">{modal.data.name}</h4></div>
@@ -390,12 +497,12 @@ const WorkoutOverview = () => {
                               e.target.style.display = 'none';
                               e.target.nextSibling.style.display = 'block';
                             }}
-                            onLoadStart={() => {
+                            onLoadStart={(e) => {
                               // Show loading state
                               const loadingDiv = e.target.parentElement.querySelector('.video-loading');
                               if (loadingDiv) loadingDiv.style.display = 'flex';
                             }}
-                            onCanPlay={() => {
+                            onCanPlay={(e) => {
                               // Hide loading state
                               const loadingDiv = e.target.parentElement.querySelector('.video-loading');
                               if (loadingDiv) loadingDiv.style.display = 'none';
@@ -411,7 +518,7 @@ const WorkoutOverview = () => {
                               e.target.style.display = 'none';
                               e.target.nextSibling.style.display = 'flex';
                             }}
-                            onLoad={() => {
+                            onLoad={(e) => {
                               // Hide loading state
                               const loadingDiv = e.target.parentElement.querySelector('.video-loading');
                               if (loadingDiv) loadingDiv.style.display = 'none';
@@ -472,6 +579,42 @@ const WorkoutOverview = () => {
               </div>
             )
           )}
+        </CustomPopUp>
+
+        {/* CONFIRMATION MODAL */}
+        <CustomPopUp
+          isOpen={confirmModal.isOpen}
+          onClose={() => setConfirmModal({ ...confirmModal, isOpen: false })}
+          onConfirm={() => {
+            confirmModal.action();
+            setConfirmModal({ ...confirmModal, isOpen: false });
+          }}
+          title="CONFIRM ACTION"
+          type="confirm"
+          confirmText="EXECUTE"
+          loading={actionLoading}
+        >
+          <div className="text-center py-6">
+            <AlertCircle size={48} className="text-yellow-400 mx-auto mb-4" />
+            <p className="text-white font-bold text-lg mb-2">Are you sure?</p>
+            <p className="text-gray-400 text-sm leading-relaxed">{confirmModal.message}</p>
+          </div>
+        </CustomPopUp>
+
+        {/* SUCCESS MODAL */}
+        <CustomPopUp
+          isOpen={successModal.isOpen}
+          onClose={() => setSuccessModal({ ...successModal, isOpen: false })}
+          title={successModal.message}
+          type="success"
+        >
+          <div className="text-center py-6">
+            <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Check size={32} className="text-green-400" />
+            </div>
+            <p className="text-white font-bold text-lg mb-2">Mission Accomplished</p>
+            <p className="text-gray-400 text-sm leading-relaxed">{successModal.details}</p>
+          </div>
         </CustomPopUp>
       </div>
     </div>

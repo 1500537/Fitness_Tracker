@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence, useMotionValue, useSpring, useTransform } from 'framer-motion';
+import { X } from 'lucide-react';
 import { eliteData } from '../../assets/assets';
 import WorkoutDetail from './WorkoutDetail';
 import { useAppContext } from '../../context/useAppContext';
@@ -182,11 +183,24 @@ const LavishSelect = ({ label, options, value, onChange, placeholder, isEditMode
 };
 
 const WorkoutModule = () => {
-  const { workouts, createWorkout, updateWorkout, deleteWorkout, completeWorkout } = useAppContext();
+  const { 
+    workouts, 
+    createWorkout, 
+    updateWorkout, 
+    deleteWorkout, 
+    completeWorkout,
+    drills,
+    categories,
+    fetchDrills,
+    fetchCategories,
+    error,
+    setError
+  } = useAppContext();
+  
   const [activeWorkout, setActiveWorkout] = useState(null);
   const [editingId, setEditingId] = useState(null);
   const [showSuccess, setShowSuccess] = useState(false);
-  const [form, setForm] = useState({ name: '', sets: '', reps: '', weight: '', notes: '', category: 'Strength', tag: 'Hypertrophy' });
+  const [form, setForm] = useState({ name: '', sets: '', reps: '', weight: '', notes: '', category: '', tag: 'Hypertrophy' });
   const [errors, setErrors] = useState({});
   const [aiSuggestion, setAiSuggestion] = useState("AWAITING_DATA_INPUT...");
   
@@ -195,7 +209,64 @@ const WorkoutModule = () => {
   const [filterCategory, setFilterCategory] = useState('ALL');
   const [deleteTargetId, setDeleteTargetId] = useState(null);
 
-  const validExercises = eliteData.exerciseLibrary[form.category] || [];
+  // Load admin data on component mount
+  useEffect(() => {
+    fetchDrills().catch(err => console.error('Error fetching drills:', err));
+    fetchCategories().catch(err => console.error('Error fetching categories:', err));
+  }, [fetchDrills, fetchCategories]);
+
+  // Global error handler for unhandled promise rejections
+  useEffect(() => {
+    const handleUnhandledRejection = (event) => {
+      console.error('Unhandled promise rejection:', event.reason);
+      event.preventDefault();
+    };
+    
+    window.addEventListener('unhandledrejection', handleUnhandledRejection);
+    return () => window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+  }, []);
+
+  // Set default category when categories are loaded
+  useEffect(() => {
+    if (categories.length > 0 && !form.category) {
+      setForm(prev => ({ ...prev, category: categories[0].name }));
+    }
+  }, [categories, form.category]);
+
+  // Get available exercises from admin drills based on selected category
+  const validExercises = drills
+    .filter(drill => drill.category === form.category)
+    .map(drill => drill.name) || [];
+
+  // Get available categories from admin data
+  const availableCategories = categories.map(cat => cat.name) || [];
+
+  // Get drill media URL for a workout
+  const getDrillMedia = (workoutName, workoutCategory) => {
+    const drill = drills.find(d => 
+      d.name.toLowerCase() === workoutName.toLowerCase() && 
+      d.category.toLowerCase() === workoutCategory.toLowerCase()
+    );
+    return drill ? { videoUrl: drill.videoUrl, mediaType: drill.mediaType } : null;
+  };
+
+  // --- UNIVERSAL STREAM RESOLVER ---
+  const resolveStreamUrl = (url) => {
+    if (!url) return '';
+    if (url.startsWith('data:')) return url;
+    
+    let processedUrl = url.trim();
+    if (processedUrl.includes('drive.google.com') || processedUrl.includes('share.google')) {
+      const driveIdMatch = processedUrl.match(/(?:\/d\/|id=|share\.google\/)([\w-]+)/);
+      if (driveIdMatch && driveIdMatch[1]) {
+        return `https://drive.google.com/uc?export=download&id=${driveIdMatch[1]}`;
+      }
+    }
+    if (processedUrl.includes('dropbox.com')) {
+      return processedUrl.replace('www.dropbox.com', 'dl.dropboxusercontent.com').replace('?dl=0', '');
+    }
+    return processedUrl;
+  };
 
   // Filter Logic
   const filteredWorkouts = useMemo(() => {
@@ -259,30 +330,44 @@ const WorkoutModule = () => {
 
   const validateForm = () => {
     const newErrors = {};
+    
+    // Check if categories are loaded
+    if (availableCategories.length === 0) {
+      newErrors.category = 'Categories are loading. Please wait.';
+      setErrors(newErrors);
+      return false;
+    }
+    
     const name = form.name.trim();
     if (!name) {
       newErrors.name = 'Exercise name is required';
     } else if (name.length < 2 || name.length > 100) {
       newErrors.name = 'Name must be 2-100 characters';
     }
+    
     if (!form.category) {
       newErrors.category = 'Category is required';
     }
+    
     const sets = parseInt(form.sets);
     if (!form.sets || isNaN(sets) || sets < 1 || sets > 20) {
       newErrors.sets = 'Sets must be 1-20';
     }
+    
     const reps = parseInt(form.reps);
     if (!form.reps || isNaN(reps) || reps < 1 || reps > 100) {
       newErrors.reps = 'Reps must be 1-100';
     }
+    
     const weight = parseFloat(form.weight);
     if (form.weight && (isNaN(weight) || weight < 0 || weight > 1000)) {
       newErrors.weight = 'Weight must be 0-1000 kg';
     }
+    
     if (form.notes && form.notes.length > 500) {
       newErrors.notes = 'Notes max 500 characters';
     }
+    
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -297,24 +382,62 @@ const WorkoutModule = () => {
   };
 
   const handleAction = async () => {
-    if (!validateForm()) return;
+    if (!validateForm()) {
+      console.log('Validation failed:', errors);
+      return;
+    }
+    
+    console.log('Creating workout with data:', form);
     setShowSuccess(true);
     setTimeout(() => setShowSuccess(false), 2000);
 
-    const workoutData = { ...form, sets: parseInt(form.sets), reps: parseInt(form.reps), weight: parseFloat(form.weight) || 0 };
-    if (editingId) {
-      await updateWorkout(editingId, workoutData);
-      setEditingId(null);
-    } else {
-      await createWorkout(workoutData);
+    try {
+      const workoutData = { 
+        ...form, 
+        sets: parseInt(form.sets), 
+        reps: parseInt(form.reps), 
+        weight: parseFloat(form.weight) || 0 
+      };
+      
+      let result;
+      if (editingId) {
+        result = await updateWorkout(editingId, workoutData);
+        setEditingId(null);
+      } else {
+        result = await createWorkout(workoutData);
+      }
+      
+      if (result && result.success) {
+        console.log('Workout operation successful:', result);
+        setForm({ 
+          name: '', 
+          sets: '', 
+          reps: '', 
+          weight: '', 
+          notes: '', 
+          category: availableCategories[0] || '', 
+          tag: 'Hypertrophy' 
+        });
+      } else {
+        console.error('Workout operation failed:', result?.message);
+        setError(result?.message || 'Operation failed');
+      }
+    } catch (error) {
+      console.error('Error in workout operation:', error);
+      setError('Operation failed. Please try again.');
     }
-    setForm({ name: '', sets: '', reps: '', weight: '', notes: '', category: 'Strength', tag: 'Hypertrophy' });
   };
 
   const confirmDeletion = async () => {
     if (deleteTargetId) {
-      await deleteWorkout(deleteTargetId);
-      setDeleteTargetId(null);
+      try {
+        const result = await deleteWorkout(deleteTargetId);
+        console.log('Workout deleted successfully:', result.message);
+      } catch (error) {
+        console.error('Delete error caught:', error);
+      } finally {
+        setDeleteTargetId(null);
+      }
     }
   };
 
@@ -379,6 +502,25 @@ const WorkoutModule = () => {
 
       <AnimatePresence>{activeWorkout && <WorkoutDetail workout={activeWorkout} onClose={() => setActiveWorkout(null)} onFinish={completeWorkout} />}</AnimatePresence>
 
+      {/* Error Display */}
+      {error && (
+        <motion.div 
+          initial={{ opacity: 0, y: -20 }} 
+          animate={{ opacity: 1, y: 0 }} 
+          exit={{ opacity: 0, y: -20 }}
+          className="fixed top-24 right-8 z-[200] bg-red-600/90 backdrop-blur-xl border border-red-500/30 rounded-2xl p-6 max-w-md shadow-2xl"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-2 h-2 bg-red-400 rounded-full animate-pulse" />
+            <p className="text-[10px] font-black uppercase text-red-200 tracking-widest">System Error</p>
+            <button onClick={() => setError(null)} className="ml-auto text-red-200 hover:text-white">
+              <X size={16} />
+            </button>
+          </div>
+          <p className="text-white font-bold text-sm mt-2">{error}</p>
+        </motion.div>
+      )}
+
       {/* --- HUD STATS --- */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 relative z-20">
         {[
@@ -417,7 +559,7 @@ const WorkoutModule = () => {
             </div>
             
             <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
-              {['ALL', ...Object.keys(eliteData.exerciseLibrary)].map(cat => (
+              {['ALL', ...availableCategories].map(cat => (
                 <button
                   key={cat}
                   onClick={() => setFilterCategory(cat)}
@@ -433,25 +575,51 @@ const WorkoutModule = () => {
           
           <div className="space-y-6 md:space-y-8 max-h-[600px] md:max-h-[900px] overflow-y-auto custom-scrollbar pr-2 md:pr-6">
             <AnimatePresence mode="popLayout">
-              {filteredWorkouts.length > 0 ? filteredWorkouts.map((w) => (
+              {filteredWorkouts.length > 0 ? filteredWorkouts.map((w) => {
+                const drillMedia = getDrillMedia(w.name, w.category);
+                return (
                 <PerspectiveCard key={w._id} className="w-full">
                   <motion.div 
                     layout initial={{ opacity: 0 }} animate={{ opacity: 1 }} 
-                    className={`group relative p-8 md:p-12 rounded-[3rem] md:rounded-[4.5rem] border-2 transition-all duration-700 ${
+                    className={`group relative p-8 md:p-12 rounded-[3rem] md:rounded-[4.5rem] border-2 transition-all duration-700 overflow-hidden ${
                         w.status === 'completed' ? 'bg-green-500/5 border-green-500/10 grayscale opacity-60' : 'bg-white/5 border-white/10 hover:border-[#FF7222] shadow-2xl'
                     }`}
                   >
-                    <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-8">
+                    {/* Background Media */}
+                    {drillMedia && drillMedia.videoUrl && (
+                      <div className="absolute inset-0 rounded-[3rem] md:rounded-[4.5rem] overflow-hidden">
+                        {drillMedia.mediaType === 'video' ? (
+                          <video
+                            src={resolveStreamUrl(drillMedia.videoUrl)}
+                            autoPlay
+                            muted
+                            loop
+                            playsInline
+                            className="w-full h-full object-cover opacity-40 group-hover:opacity-50 transition-opacity duration-300"
+                          />
+                        ) : (
+                          <img
+                            src={resolveStreamUrl(drillMedia.videoUrl)}
+                            className="w-full h-full object-cover opacity-40 group-hover:opacity-50 transition-opacity duration-300"
+                            alt={w.name}
+                          />
+                        )}
+                        {/* Gradient overlay for readability */}
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-black/20" />
+                      </div>
+                    )}
+                    
+                    <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-8 relative z-10">
                       <div className="flex-1 w-full space-y-4 md:space-y-6">
                         <div className="flex items-center gap-3">
                           <span className="text-[8px] font-black bg-[#FF7222] text-white px-4 py-1.5 rounded-full uppercase italic tracking-widest">{w.category}</span>
                           <span className={`text-[8px] font-black uppercase italic tracking-[0.2em] ${w.status === 'completed' ? 'text-green-400' : 'text-gray-500'}`}>// {w.tag}</span>
                         </div>
-                        <h3 className={`text-4xl md:text-6xl font-[1000] italic uppercase tracking-tighter leading-none ${w.status === 'completed' ? 'line-through opacity-40' : ''}`}>{w.name}</h3>
+                        <h3 className={`text-4xl md:text-6xl font-[1000] italic uppercase tracking-tighter leading-none ${w.status === 'completed' ? 'line-through opacity-40' : ''} text-white drop-shadow-lg`}>{w.name}</h3>
                         <div className="flex gap-8 md:gap-12 pt-2">
-                            <div className="space-y-1"><p className="text-[8px] font-black text-gray-500 uppercase">Sets</p><p className="text-xl md:text-3xl font-[1000] italic">{w.sets}</p></div>
-                            <div className="space-y-1"><p className="text-[8px] font-black text-gray-500 uppercase">Reps</p><p className="text-xl md:text-3xl font-[1000] italic">{w.reps}</p></div>
-                            <div className="space-y-1"><p className="text-[8px] font-black text-[#FF7222] uppercase">Load</p><p className="text-xl md:text-3xl font-[1000] italic">{w.weight}<span className="text-[10px] ml-1 opacity-50">KG</span></p></div>
+                            <div className="space-y-1"><p className="text-[8px] font-black text-gray-300 uppercase">Sets</p><p className="text-xl md:text-3xl font-[1000] italic text-white">{w.sets}</p></div>
+                            <div className="space-y-1"><p className="text-[8px] font-black text-gray-300 uppercase">Reps</p><p className="text-xl md:text-3xl font-[1000] italic text-white">{w.reps}</p></div>
+                            <div className="space-y-1"><p className="text-[8px] font-black text-[#FF7222] uppercase">Load</p><p className="text-xl md:text-3xl font-[1000] italic text-white">{w.weight}<span className="text-[10px] ml-1 opacity-50">KG</span></p></div>
                         </div>
                       </div>
                       <div className="flex items-center gap-3 w-full lg:w-auto">
@@ -461,14 +629,14 @@ const WorkoutModule = () => {
                           >ENGAGE</motion.button>
                         )}
                         <div className="flex lg:flex-col gap-2">
-                          <button onClick={() => {setEditingId(w._id); setForm(w); window.scrollTo({top: 0, behavior: 'smooth'});}} className="w-12 h-12 md:w-16 md:h-16 bg-white/5 rounded-2xl flex items-center justify-center hover:bg-white hover:text-black transition-all border border-white/10">✎</button>
-                          <button onClick={() => setDeleteTargetId(w._id)} className="w-12 h-12 md:w-16 md:h-16 bg-red-500/10 text-red-500 rounded-2xl flex items-center justify-center hover:bg-red-500 hover:text-white transition-all border border-red-500/20">✕</button>
+                          <button onClick={() => {setEditingId(w._id); setForm(w); window.scrollTo({top: 0, behavior: 'smooth'});}} className="w-12 h-12 md:w-16 md:h-16 bg-white/10 backdrop-blur-sm rounded-2xl flex items-center justify-center hover:bg-white hover:text-black transition-all border border-white/10">✎</button>
+                          <button onClick={() => setDeleteTargetId(w._id)} className="w-12 h-12 md:w-16 md:h-16 bg-red-500/20 text-red-500 rounded-2xl flex items-center justify-center hover:bg-red-500 hover:text-white transition-all border border-red-500/20 backdrop-blur-sm">✕</button>
                         </div>
                       </div>
                     </div>
                   </motion.div>
                 </PerspectiveCard>
-              )) : (
+              )}) : (
                 <div className="py-20 text-center opacity-30">
                    <p className="text-4xl font-[1000] italic uppercase tracking-tighter">No Neural Logs Found</p>
                    <p className="text-[10px] font-black tracking-[0.5em] mt-2">ADJUST FILTER PARAMETERS</p>
@@ -503,8 +671,40 @@ const WorkoutModule = () => {
                     </div>
                   </div>
 
-                  <LavishSelect isEditMode={editingId} label="Sector Category" options={Object.keys(eliteData.exerciseLibrary)} value={form.category} onChange={(val) => handleInputChange('category', val)} />
-                  <LavishSelect isEditMode={editingId} label="Unit Designation" options={validExercises} value={form.name} placeholder="SELECT UNIT" onChange={(val) => handleInputChange('name', val)} />
+                  {/* Error Display */}
+                  {Object.keys(errors).length > 0 && (
+                    <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-4 mb-6">
+                      <p className="text-red-400 text-xs font-black uppercase mb-2">Validation Errors:</p>
+                      {Object.entries(errors).map(([field, error]) => (
+                        <p key={field} className="text-red-300 text-xs">
+                          <span className="font-black uppercase">{field}:</span> {error}
+                        </p>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Loading State */}
+                  {availableCategories.length === 0 && (
+                    <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-2xl p-4 mb-6">
+                      <p className="text-yellow-400 text-xs font-black uppercase">Loading admin data...</p>
+                    </div>
+                  )}
+
+                  <LavishSelect 
+                    isEditMode={editingId} 
+                    label="Sector Category" 
+                    options={availableCategories} 
+                    value={form.category} 
+                    onChange={(val) => handleInputChange('category', val)} 
+                  />
+                  <LavishSelect 
+                    isEditMode={editingId} 
+                    label="Unit Designation" 
+                    options={validExercises} 
+                    value={form.name} 
+                    placeholder="SELECT UNIT" 
+                    onChange={(val) => handleInputChange('name', val)} 
+                  />
                   
                   <div className="grid grid-cols-3 gap-3 md:gap-5">
                     {['sets', 'reps', 'weight'].map((key) => (
@@ -537,12 +737,15 @@ const WorkoutModule = () => {
                   </div>
 
                   <motion.button 
-                    whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }} onClick={handleAction} 
+                    whileHover={{ scale: 1.02 }} 
+                    whileTap={{ scale: 0.97 }} 
+                    onClick={handleAction}
+                    disabled={availableCategories.length === 0 || !form.category || !form.name}
                     className={`w-full py-8 md:py-10 rounded-[2.5rem] md:rounded-[3.5rem] font-[1000] italic uppercase text-xl md:text-3xl transition-all ${
-                        editingId ? 'bg-black text-white' : 'bg-[#FF7222] text-white shadow-2xl'
-                    }`}
+                      editingId ? 'bg-black text-white' : 'bg-[#FF7222] text-white shadow-2xl'
+                    } ${(availableCategories.length === 0 || !form.category || !form.name) ? 'opacity-50 cursor-not-allowed' : 'hover:brightness-110'}`}
                   >
-                    {editingId ? 'OVERWRITE MISSION ✓' : 'EXECUTE SEQUENCE +'}
+                    {availableCategories.length === 0 ? 'LOADING DATA...' : editingId ? 'OVERWRITE MISSION ✓' : 'EXECUTE SEQUENCE +'}
                   </motion.button>
                 </div>
               </div>

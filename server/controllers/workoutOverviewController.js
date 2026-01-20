@@ -429,19 +429,20 @@ export const deleteCategory = async (req, res) => {
 export const uploadDrillMedia = async (req, res) => {
     try {
         if (!req.file) {
-            return res.json({ success: false, message: 'No file uploaded' });
+            return res.status(400).json({ success: false, message: 'No file uploaded' });
         }
 
         const file = req.file;
+        console.log('File received:', { name: file.originalname, size: file.size, type: file.mimetype });
 
         // Validate file type
         const allowedTypes = [
-            'image/jpeg', 'image/png', 'image/gif', 'image/webp',
-            'video/mp4', 'video/webm', 'video/ogg', 'video/avi', 'video/mov'
+            'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp',
+            'video/mp4', 'video/webm', 'video/ogg', 'video/avi', 'video/mov', 'video/quicktime'
         ];
 
         if (!allowedTypes.includes(file.mimetype)) {
-            return res.json({
+            return res.status(400).json({
                 success: false,
                 message: 'Invalid file type. Only images (JPEG, PNG, GIF, WebP) and videos (MP4, WebM, OGG, AVI, MOV) are allowed.'
             });
@@ -449,53 +450,49 @@ export const uploadDrillMedia = async (req, res) => {
 
         // Validate file size (100MB limit for videos, 10MB for images)
         const isVideo = file.mimetype.startsWith('video/');
-        const maxSize = isVideo ? 100 * 1024 * 1024 : 10 * 1024 * 1024; // 100MB for videos, 10MB for images
+        const maxSize = isVideo ? 100 * 1024 * 1024 : 10 * 1024 * 1024;
 
         if (file.size > maxSize) {
-            return res.json({
+            return res.status(400).json({
                 success: false,
                 message: `File too large. Maximum size is ${isVideo ? '100MB' : '10MB'}.`
             });
         }
 
         // Determine resource type and folder for Cloudinary
-        let resourceType = 'auto';
-        let folder = 'fitness_tracker/drills';
+        const resourceType = isVideo ? 'video' : 'image';
+        const folder = `fitness_tracker/drills/${resourceType}s`;
+        const publicId = `drill_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-        if (file.mimetype.startsWith('image/')) {
-            resourceType = 'image';
-            folder = 'fitness_tracker/drills/images';
-        } else if (file.mimetype.startsWith('video/')) {
-            resourceType = 'video';
-            folder = 'fitness_tracker/drills/videos';
+        console.log('Uploading to Cloudinary:', { resourceType, folder, publicId });
+
+        // Upload to Cloudinary
+        const uploadOptions = {
+            resource_type: resourceType,
+            folder: folder,
+            public_id: publicId,
+            timeout: 120000, // 2 minutes timeout
+            chunk_size: 6000000, // 6MB chunks for large files
+        };
+
+        // Add transformations based on file type
+        if (resourceType === 'image') {
+            uploadOptions.transformation = [
+                { quality: 'auto:good', fetch_format: 'auto' },
+                { width: 1920, height: 1080, crop: 'limit' }
+            ];
+        } else {
+            uploadOptions.transformation = [
+                { quality: 'auto:good' },
+                { width: 1920, height: 1080, crop: 'limit', video_codec: 'auto' }
+            ];
+            // Generate thumbnail for videos
+            uploadOptions.eager = [
+                { width: 640, height: 360, crop: 'fill', quality: 'auto', format: 'jpg' }
+            ];
         }
 
-        // Upload to Cloudinary with optimized settings
         const result = await new Promise((resolve, reject) => {
-            const uploadOptions = {
-                resource_type: resourceType,
-                folder: folder,
-                public_id: `drill_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                timeout: 60000, // 60 seconds timeout
-            };
-
-            // Different transformations for images vs videos
-            if (resourceType === 'image') {
-                uploadOptions.transformation = [
-                    { quality: 'auto', fetch_format: 'auto' },
-                    { width: 1920, height: 1080, crop: 'limit' } // Max dimensions for images
-                ];
-            } else if (resourceType === 'video') {
-                uploadOptions.transformation = [
-                    { quality: 'auto', fetch_format: 'auto' },
-                    { width: 1920, height: 1080, crop: 'limit' }, // Max dimensions for videos
-                    { video_codec: 'auto' }
-                ];
-                uploadOptions.eager = [
-                    { width: 640, height: 360, crop: 'fill', quality: 'auto' } // Generate thumbnail
-                ];
-            }
-
             const stream = cloudinary.uploader.upload_stream(
                 uploadOptions,
                 (error, result) => {
@@ -503,39 +500,37 @@ export const uploadDrillMedia = async (req, res) => {
                         console.error('Cloudinary upload error:', error);
                         reject(new Error(`Upload failed: ${error.message}`));
                     } else {
+                        console.log('Cloudinary upload success:', { public_id: result.public_id, url: result.secure_url });
                         resolve(result);
                     }
                 }
             );
 
-            // Convert buffer to stream
-            const bufferStream = require('stream').Readable.from(file.buffer);
-            bufferStream.pipe(stream);
+            // Pipe the buffer to Cloudinary
+            stream.end(file.buffer);
         });
 
-        // Determine media type for database
-        const mediaType = file.mimetype.startsWith('video/') ? 'video' : 'image';
-
-        // For videos, also provide thumbnail URL if available
+        // Prepare response data
         const responseData = {
             success: true,
             videoUrl: result.secure_url,
-            mediaType: mediaType,
+            mediaType: resourceType,
             mediaPublicId: result.public_id,
             message: 'Media uploaded successfully'
         };
 
         // Add thumbnail for videos
-        if (mediaType === 'video' && result.eager && result.eager.length > 0) {
+        if (resourceType === 'video' && result.eager && result.eager.length > 0) {
             responseData.thumbnailUrl = result.eager[0].secure_url;
         }
 
+        console.log('Upload response:', responseData);
         res.json(responseData);
 
     } catch (error) {
         console.error('Error uploading media:', error);
 
-        // Provide more specific error messages
+        // Provide specific error messages
         let errorMessage = 'Failed to upload media';
         if (error.message.includes('timeout')) {
             errorMessage = 'Upload timed out. Please try with a smaller file.';
@@ -543,12 +538,14 @@ export const uploadDrillMedia = async (req, res) => {
             errorMessage = 'Unsupported file format. Please try a different file.';
         } else if (error.message.includes('size')) {
             errorMessage = 'File size exceeds limits. Please compress the file.';
+        } else if (error.message.includes('network')) {
+            errorMessage = 'Network error. Please check your connection and try again.';
         }
 
-        res.json({
+        res.status(500).json({
             success: false,
             message: errorMessage,
-            details: error.message
+            details: process.env.NODE_ENV === 'development' ? error.message : undefined
         });
     }
 };

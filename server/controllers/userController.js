@@ -176,11 +176,13 @@ export const toggleUserBan = async (req, res) => {
         // Emit real-time ban notification to the banned user
         if (user.isBanned) {
             const io = req.app.get('io');
-            io.to(`user_${userId}`).emit('user-banned', {
-                message: 'Your account has been suspended',
-                reason: user.banReason || 'Your account has been suspended. Please contact support.',
-                bannedAt: new Date()
-            });
+            if (io) {
+                io.to(`user_${userId}`).emit('user-banned', {
+                    message: 'Your account has been suspended',
+                    reason: user.banReason || 'Your account has been suspended. Please contact support.',
+                    bannedAt: new Date()
+                });
+            }
         }
 
         res.json({

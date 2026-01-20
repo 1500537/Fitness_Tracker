@@ -143,6 +143,7 @@ export const getUserData = async (req, res) => {
                 image: user.image,
                 pricing: user.pricing,
                 role: user.role,
+                isAdmin: user.role === 'admin' || user.role === 'owner',
                 isBanned: user.isBanned,
                 banReason: user.banReason,
                 goals: user.goals,

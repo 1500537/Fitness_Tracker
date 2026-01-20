@@ -1,5 +1,9 @@
+import dotenv from "dotenv";
+
+// Load environment variables FIRST
+dotenv.config();
+
 import express from "express";
-import "dotenv/config";
 import cors from "cors";
 import { createServer } from "http";
 import { Server } from "socket.io";
@@ -14,6 +18,9 @@ import dashboardRoutes from "./routes/dashboardRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import workoutOverviewRoutes from "./routes/workoutOverviewRoutes.js";
 
+import revenueRoutes from "./routes/revenueRoutes.js";
+import authRoutes from "./routes/authRoutes.js";
+
 connectDB()
 connectCloudinary()
 
@@ -22,20 +29,19 @@ const server = createServer(app);
 const io = new Server(server, {
   cors: {
     origin: ["http://localhost:5173", "http://localhost:5174", "http://localhost:5175"],
-    methods: ["GET", "POST"]
+    methods: ["GET", "POST", "PUT", "DELETE"]
   }
 });
 
 app.use(cors()) //Enable Cross-Origin Resource Sharing
-
-// Make io available to routes
-app.set('io', io);
-
-
-
-// Clerk Middleware
 app.use(express.json())
 app.use(clerkMiddleware())
+
+// Middleware to attach io to requests
+app.use((req, res, next) => {
+  req.io = io;
+  next();
+});
 
 // API to listen to Clerk Webhooks
 app.use('/api/clerk', clerkWebhooks);
@@ -58,6 +64,12 @@ app.use('/api/users', userRoutes);
 // Workout Overview routes (Admin)
 app.use('/api/workout-overview', workoutOverviewRoutes);
 
+// Revenue routes (Admin)
+app.use('/api/revenue', revenueRoutes);
+
+// Auth routes
+app.use('/api/auth', authRoutes);
+
 app.get('/', (req, res) => res.send("API is working..."))
 
 // Socket.IO connection handling
@@ -79,6 +91,12 @@ io.on('connection', (socket) => {
   socket.on('join-categories-room', () => {
     socket.join('categories');
     console.log('Admin joined categories room');
+  });
+
+  // Join admin rooms for revenue management
+  socket.on('join-revenue-room', () => {
+    socket.join('revenue');
+    console.log('Admin joined revenue room');
   });
 
   socket.on('disconnect', () => {

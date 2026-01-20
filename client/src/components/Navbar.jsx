@@ -3,14 +3,17 @@ import { Link as RouterLink } from 'react-router-dom';
 import { Link as ScrollLink } from 'react-scroll'; // Smooth scroll ke liye
 import { motion } from 'framer-motion';
 import { SignedIn, SignedOut, SignInButton, UserButton, useUser } from '@clerk/clerk-react';
+import { useAppContext } from '../context/useAppContext';
 
 const Navbar = () => {
   const [hoveredItem, setHoveredItem] = useState(null);
   const { user, isLoaded } = useUser();
+  const { user: appUser } = useAppContext();
   
   // Navigation items logic
   const publicItems = ['Home', 'About', 'Pricing', 'Contact'];
-  const currentNavItems = user ? [...publicItems, 'Tracker'] : publicItems;
+  const trackerItem = appUser?.isAdmin ? 'Admin' : 'Tracker';
+  const currentNavItems = user ? [...publicItems, trackerItem] : publicItems;
 
   return (
     <nav className="flex items-center justify-between w-full px-6 md:px-16 py-6 md:py-10 bg-transparent absolute top-0 z-[100]">
@@ -34,10 +37,10 @@ const Navbar = () => {
               onMouseLeave={() => setHoveredItem(null)}
               className="relative z-10"
             >
-              {item === 'Tracker' ? (
-                // Tracker ke liye real route
+              {(item === 'Tracker' || item === 'Admin') ? (
+                // Tracker/Admin ke liye real route
                 <RouterLink 
-                  to="/dashboard" 
+                  to={item === 'Admin' ? '/admin' : '/dashboard'} 
                   className={`px-10 py-3 text-[13px] font-black uppercase tracking-[0.2em] italic transition-all duration-500 block ${hoveredItem === item ? 'text-white' : 'text-black/70'}`}
                 >
                   {item}
@@ -126,8 +129,8 @@ const Navbar = () => {
       {/* MOBILE NAV (Synced with Auth) */}
       <div className="lg:hidden fixed bottom-6 left-1/2 -translate-x-1/2 w-[90%] bg-black/80 backdrop-blur-3xl border border-white/10 h-16 rounded-[2rem] flex items-center justify-around px-6 z-[200] shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
         {currentNavItems.map((item) => (
-           item === 'Tracker' ? 
-           <RouterLink key={item} to="/dashboard" className="text-[10px] font-black uppercase text-white/40 hover:text-[#FF7222] italic tracking-widest transition-colors">{item}</RouterLink> :
+           (item === 'Tracker' || item === 'Admin') ? 
+           <RouterLink key={item} to={item === 'Admin' ? '/admin' : '/dashboard'} className="text-[10px] font-black uppercase text-white/40 hover:text-[#FF7222] italic tracking-widest transition-colors">{item}</RouterLink> :
            <ScrollLink key={item} to={item.toLowerCase()} smooth={true} className="text-[10px] font-black uppercase text-white/40 hover:text-[#FF7222] italic tracking-widest transition-colors cursor-pointer">{item}</ScrollLink>
         ))}
       </div>

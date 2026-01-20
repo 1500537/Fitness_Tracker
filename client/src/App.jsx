@@ -49,7 +49,7 @@ const PageWrapper = ({ children }) => (
 const AnimatedRoutes = () => {
   const location = useLocation();
   const { userId, isLoaded } = useAuth();
-  const { user, fetchUser, banAlert, setBanAlert, checkUserBanStatus } = useAppContext();
+  const { user, fetchUser, banAlert, setBanAlert, checkUserRole } = useAppContext();
   
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [showExpiredModal, setShowExpiredModal] = useState(false);
@@ -57,13 +57,17 @@ const AnimatedRoutes = () => {
   const isDashboard = location.pathname.startsWith('/dashboard');
   const isAdmin = location.pathname.startsWith('/admin');
   
-  // Immediate ban check on login
+  // Immediate role check on login
   useEffect(() => {
-    if (userId && isLoaded && !banAlert) {
-      console.log('Checking ban status immediately on login');
-      checkUserBanStatus();
+    if (userId && isLoaded && !user) {
+      checkUserRole().then(userData => {
+        if (userData) {
+          // User data will be set by fetchUser
+          fetchUser();
+        }
+      });
     }
-  }, [userId, isLoaded, banAlert, checkUserBanStatus]);
+  }, [userId, isLoaded, user, checkUserRole, fetchUser]);
 
   // Fetch user data on login
   useEffect(() => {
@@ -131,6 +135,16 @@ const AnimatedRoutes = () => {
   // If user is banned, don't allow access to dashboard/admin
   if ((isDashboard || isAdmin) && user && user.isBanned) {
     return <Navigate to="/" state={{ from: location }} replace />;
+  }
+
+  // If trying to access admin without admin privileges, redirect to dashboard
+  if (isAdmin && user && user.role !== 'admin' && user.role !== 'owner') {
+    return <Navigate to="/dashboard" state={{ from: location }} replace />;
+  }
+
+  // If trying to access dashboard without user role, redirect to home
+  if (isDashboard && user && user.role === 'admin') {
+    return <Navigate to="/admin" state={{ from: location }} replace />;
   }
 
   return (

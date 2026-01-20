@@ -1,13 +1,16 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, CheckCircle2, AlertOctagon, UserMinus, ShieldCheck, Loader2 } from 'lucide-react';
+import { X, CheckCircle2, AlertOctagon, UserMinus, ShieldCheck, Loader2, Trash2, Plus, Edit3, AlertCircle, Check } from 'lucide-react';
 
 const CustomPopUp = ({ isOpen, onClose, onConfirm, title, type, children, confirmText = "Confirm", loading = false }) => {
   // Dynamic icons and colors based on type
   const typeConfigs = {
-    edit: { icon: <ShieldCheck className="text-blue-400" size={28} />, glow: "rgba(59, 130, 246, 0.5)", btn: "bg-blue-600" },
-    ban: { icon: <AlertOctagon className="text-yellow-400" size={28} />, glow: "rgba(234, 179, 8, 0.5)", btn: "bg-yellow-600" },
-    delete: { icon: <UserMinus className="text-red-400" size={28} />, glow: "rgba(239, 68, 68, 0.5)", btn: "bg-red-600" }
+    add: { icon: <Plus className="text-green-400" size={28} />, glow: "rgba(34, 197, 94, 0.5)", btn: "bg-green-600", title: "INITIALIZE NEW DRILL" },
+    edit: { icon: <Edit3 className="text-blue-400" size={28} />, glow: "rgba(59, 130, 246, 0.5)", btn: "bg-blue-600", title: "RECALIBRATE WORKOUT" },
+    delete: { icon: <Trash2 className="text-red-400" size={28} />, glow: "rgba(239, 68, 68, 0.5)", btn: "bg-red-600", title: "PURGE PROTOCOL" },
+    success: { icon: <CheckCircle2 className="text-green-400" size={28} />, glow: "rgba(34, 197, 94, 0.5)", btn: "bg-green-600", title: "OPERATION SUCCESSFUL" },
+    confirm: { icon: <AlertCircle className="text-yellow-400" size={28} />, glow: "rgba(234, 179, 8, 0.5)", btn: "bg-yellow-600", title: "CONFIRM ACTION" },
+    ban: { icon: <AlertOctagon className="text-yellow-400" size={28} />, glow: "rgba(234, 179, 8, 0.5)", btn: "bg-yellow-600", title: "BAN USER" }
   };
 
   const config = typeConfigs[type] || typeConfigs.edit;
@@ -21,7 +24,7 @@ const CustomPopUp = ({ isOpen, onClose, onConfirm, title, type, children, confir
             initial={{ opacity: 0 }} 
             animate={{ opacity: 1 }} 
             exit={{ opacity: 0 }}
-            onClick={onClose} 
+            onClick={type === 'success' ? onClose : undefined} 
             className="absolute inset-0 bg-black/60 backdrop-blur-[12px]"
           />
 
@@ -44,13 +47,17 @@ const CustomPopUp = ({ isOpen, onClose, onConfirm, title, type, children, confir
                     {config.icon}
                   </div>
                   <div>
-                    <h2 className="text-xl font-black italic text-white tracking-tight leading-none uppercase">{title}</h2>
-                    <p className="text-[9px] text-gray-500 font-bold tracking-[0.3em] uppercase mt-1">Authorized Session</p>
+                    <h2 className="text-xl font-black italic text-white tracking-tight leading-none uppercase">{title || config.title}</h2>
+                    <p className="text-[9px] text-gray-500 font-bold tracking-[0.3em] uppercase mt-1">
+                      {type === 'success' ? 'Mission Complete' : 'Authorized Session'}
+                    </p>
                   </div>
                 </div>
-                <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-full transition-colors text-gray-500 hover:text-white">
-                  <X size={20} />
-                </button>
+                {type !== 'confirm' && (
+                  <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-full transition-colors text-gray-500 hover:text-white">
+                    <X size={20} />
+                  </button>
+                )}
               </div>
 
               {/* Content Area */}
@@ -59,21 +66,48 @@ const CustomPopUp = ({ isOpen, onClose, onConfirm, title, type, children, confir
               </div>
 
               {/* Action Buttons */}
-              <div className="flex gap-4">
-                <button 
-                  onClick={onClose} 
-                  className="flex-1 py-4 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest text-gray-400 transition-all active:scale-95"
-                >
-                  Discard
-                </button>
-                <button 
-                  onClick={() => { if (!loading) onConfirm(); }}
-                  disabled={loading}
-                  className={`flex-1 py-4 ${config.btn} text-white shadow-2xl rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all hover:brightness-110 active:scale-95 flex items-center justify-center gap-2 ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                >
-                  {loading ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />} {confirmText}
-                </button>
-              </div>
+              {type === 'success' ? (
+                <div className="flex justify-center">
+                  <button 
+                    onClick={onClose} 
+                    className="px-8 py-4 bg-green-600 text-white shadow-2xl rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all hover:brightness-110 active:scale-95 flex items-center justify-center gap-2"
+                  >
+                    <Check size={14} /> ACKNOWLEDGED
+                  </button>
+                </div>
+              ) : type === 'confirm' ? (
+                <div className="flex gap-4">
+                  <button 
+                    onClick={onClose} 
+                    className="flex-1 py-4 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest text-gray-400 transition-all active:scale-95"
+                  >
+                    CANCEL
+                  </button>
+                  <button 
+                    onClick={() => { if (!loading) onConfirm(); }}
+                    disabled={loading}
+                    className={`flex-1 py-4 ${config.btn} text-white shadow-2xl rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all hover:brightness-110 active:scale-95 flex items-center justify-center gap-2 ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    {loading ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />} {confirmText}
+                  </button>
+                </div>
+              ) : (
+                <div className="flex gap-4">
+                  <button 
+                    onClick={onClose} 
+                    className="flex-1 py-4 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest text-gray-400 transition-all active:scale-95"
+                  >
+                    DISCARD
+                  </button>
+                  <button 
+                    onClick={() => { if (!loading) onConfirm(); }}
+                    disabled={loading}
+                    className={`flex-1 py-4 ${config.btn} text-white shadow-2xl rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all hover:brightness-110 active:scale-95 flex items-center justify-center gap-2 ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    {loading ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />} {confirmText}
+                  </button>
+                </div>
+              )}
             </div>
           </motion.div>
         </div>

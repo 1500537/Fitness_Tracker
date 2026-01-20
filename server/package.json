@@ -6,7 +6,12 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "server": "nodemon server.js",
-    "start": "node server.js"
+    "start": "node server.js",
+    "seed": "node seedCategories.js",
+    "seed:revenue": "node scripts/seedRevenue.js",
+    "seed:subscriptions": "node scripts/seedSubscriptions.js",
+    "add:subscriptions": "node scripts/addMoreSubscriptions.js",
+    "test-cloudinary": "node testCloudinary.js"
   },
   "keywords": [],
   "author": "",

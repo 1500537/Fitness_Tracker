@@ -1,103 +1,182 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { NavLink, useNavigate } from 'react-router-dom';
+import { 
+  LayoutDashboard, 
+  Dumbbell, 
+  Apple, 
+  LineChart, 
+  Zap, 
+  ShieldCheck,
+  ChevronRight,
+  Menu,
+  X,
+  Fingerprint,
+  Cpu,
+  Activity
+} from 'lucide-react';
+import { useAppContext } from '../../context/useAppContext';
 
 const Sidebar = () => {
   const navigate = useNavigate();
+  const [isOpen, setIsOpen] = React.useState(false);
+  const { user } = useAppContext();
+
   const links = [
-    { name: 'Overview', path: '/dashboard', icon: '⚡' },
-    { name: 'Workouts', path: '/dashboard/workouts', icon: '🏋️‍♂️' },
-    { name: 'Nutrition', path: '/dashboard/nutrition', icon: '🥗' },
-    { name: 'Progress', path: '/dashboard/progress', icon: '📈' }
+    { name: 'Overview', path: '/dashboard', icon: LayoutDashboard },
+    ...(user?.isAdmin ? 
+      [{ name: 'Admin', path: '/admin', icon: ShieldCheck }] : 
+      [{ name: 'Workouts', path: '/dashboard/workouts', icon: Dumbbell }]
+    ),
+    { name: 'Nutrition', path: '/dashboard/nutrition', icon: Apple },
+    { name: 'Progress', path: '/dashboard/progress', icon: LineChart }
   ];
 
   return (
-    <motion.aside 
-      initial={{ x: -100, rotateY: 35, opacity: 0 }}
-      animate={{ x: 0, rotateY: 15, opacity: 1 }}
-      whileHover={{ rotateY: 2, x: 10 }}
-      transition={{ type: 'spring', stiffness: 100, damping: 20 }}
-      className="fixed left-8 top-8 bottom-8 w-80 bg-black/40 backdrop-blur-2xl text-white rounded-[4rem] p-10 flex flex-col z-[100] shadow-[50px_0_100px_rgba(0,0,0,0.8)] border border-white/10 hidden lg:flex overflow-hidden group/sidebar"
-    >
-      {/* --- BACKGROUND GLOW DECORATION --- */}
-      <div className="absolute -top-20 -left-20 w-40 h-40 bg-[#FF7222]/20 blur-[100px] rounded-full pointer-events-none" />
-      
-      {/* --- LOGO SECTION (Redirects to Home) --- */}
-      <div 
-        onClick={() => navigate('/')}
-        className="mb-16 cursor-pointer group/logo flex items-center gap-4"
-      >
-        <div className="w-12 h-12 bg-[#FF7222] rounded-2xl flex items-center justify-center rotate-12 group-hover/logo:rotate-[360deg] transition-all duration-700 shadow-[0_0_20px_#FF7222]">
-          <span className="text-black font-black text-2xl tracking-tighter italic">P</span>
-        </div>
-        <h2 className="text-3xl font-[1000] italic uppercase tracking-tighter group-hover/logo:tracking-widest transition-all duration-500">
-          Elite<span className="text-[#FF7222]">Pulse</span>
-        </h2>
+    <>
+      {/* --- MOBILE TRIGGER --- */}
+      <div className="lg:hidden fixed top-6 left-6 z-[200]">
+        <button 
+          onClick={() => setIsOpen(!isOpen)}
+          className="p-4 bg-[#FF7222] rounded-2xl text-black shadow-[0_0_20px_#FF7222]"
+        >
+          {isOpen ? <X size={24} /> : <Menu size={24} />}
+        </button>
       </div>
 
-      {/* --- NAVIGATION LINKS --- */}
-      <nav className="flex-1 space-y-6">
-        {links.map((link) => (
-          <NavLink 
-            key={link.name} 
-            to={link.path}
-            end={link.path === '/dashboard'} // Proper active matching
-            className={({ isActive }) => `
-              relative flex items-center gap-5 p-5 rounded-[2rem] transition-all duration-500 group/item overflow-hidden
-              ${isActive ? 'bg-[#FF7222] text-black shadow-[0_20px_40px_rgba(255,114,34,0.3)]' : 'text-gray-400 hover:text-white hover:bg-white/5'}
-            `}
-          >
-            {/* Active Indicator Bar */}
-            <motion.div 
-               className={`absolute left-0 w-1 h-8 bg-black rounded-full transition-all duration-300`}
-               initial={false}
-               animate={{ opacity: 1 }}
-            />
+      {/* --- MAIN SIDEBAR --- */}
+      <motion.aside 
+        initial={{ x: -350, rotateY: 35, opacity: 0 }}
+        animate={{ 
+          x: isOpen ? 0 : (window.innerWidth < 1024 ? -350 : 0), 
+          rotateY: window.innerWidth < 1024 ? 0 : 15, 
+          opacity: 1 
+        }}
+        whileHover={window.innerWidth > 1024 ? { rotateY: 5, x: 10 } : {}}
+        transition={{ type: 'spring', stiffness: 80, damping: 20 }}
+        className={`
+          fixed left-6 top-6 bottom-6 w-80 
+          bg-black/60 backdrop-blur-3xl text-white 
+          rounded-[3.5rem] p-10 flex flex-col z-[150] 
+          shadow-[50px_0_100px_rgba(0,0,0,0.9)] 
+          border border-white/10 overflow-hidden group/sidebar
+          ${isOpen ? 'flex' : 'hidden lg:flex'}
+        `}
+      >
+        <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-transparent via-[#FF7222]/5 to-transparent h-[200%] animate-scanline" />
 
-            <motion.span 
-              whileHover={{ scale: 1.3, rotate: -10 }}
-              className="text-2xl relative z-10"
+        {/* --- LOGO SECTION --- */}
+        <div 
+          onClick={() => navigate('/')}
+          className="mb-20 cursor-pointer group/logo flex items-center gap-5 relative z-10"
+        >
+          <div className="w-14 h-14 bg-[#FF7222] rounded-2xl flex items-center justify-center rotate-12 group-hover/logo:rotate-[360deg] transition-all duration-700 shadow-[0_0_30px_#FF7222]">
+            <Zap className="text-black fill-black" size={28} />
+          </div>
+          <div className="flex flex-col">
+            <h2 className="text-3xl font-[1000] italic uppercase tracking-tighter leading-none">
+              Elite<span className="text-[#FF7222]">Pulse</span>
+            </h2>
+            <span className="text-[8px] font-black tracking-[0.4em] text-gray-500 uppercase mt-1 italic">Neural_Network_v2</span>
+          </div>
+        </div>
+
+        {/* --- NAVIGATION LINKS --- */}
+        <nav className="flex-1 space-y-4 relative z-10">
+          {links.map((link) => (
+            <NavLink 
+              key={link.name} 
+              to={link.path}
+              end={link.path === '/dashboard'}
+              onClick={() => setIsOpen(false)}
             >
-              {link.icon}
-            </motion.span>
-            
-            <span className="font-[1000] italic uppercase text-[11px] tracking-[0.25em] relative z-10">
-              {link.name}
-            </span>
+              {({ isActive }) => (
+                <div className={`
+                  relative flex items-center justify-between p-5 rounded-3xl transition-all duration-500 group/item overflow-hidden
+                  ${isActive 
+                    ? 'bg-gradient-to-r from-[#FF7222] to-orange-600 text-black shadow-[0_15px_30px_rgba(255,114,34,0.4)] scale-105' 
+                    : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent hover:border-white/10'}
+                `}>
+                  <div className="flex items-center gap-5">
+                    <link.icon 
+                      size={22} 
+                      className={`transition-transform duration-500 group-hover/item:rotate-12 ${isActive ? 'scale-110' : ''}`} 
+                    />
+                    <span className="font-[1000] italic uppercase text-[10px] tracking-[0.2em]">
+                      {link.name}
+                    </span>
+                  </div>
+                  <ChevronRight 
+                    size={14} 
+                    className={`transition-all duration-300 ${isActive ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-2 group-hover/item:opacity-100 group-hover/item:translate-x-0'}`} 
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover/item:translate-x-full transition-transform duration-1000" />
+                </div>
+              )}
+            </NavLink>
+          ))}
+        </nav>
 
-            {/* Hover Shine Effect */}
-            <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/10 to-white/0 -translate-x-full group-hover/item:translate-x-full transition-transform duration-1000" />
-          </NavLink>
-        ))}
-      </nav>
+        {/* --- PROFESSIONAL NEURAL ID --- */}
+        <motion.div 
+          whileHover={{ y: -5, borderColor: 'rgba(255,114,34,0.5)' }}
+          className="mt-auto bg-gradient-to-br from-white/[0.07] to-transparent backdrop-blur-md p-6 rounded-[2.5rem] border border-white/10 relative group/profile cursor-pointer shadow-2xl transition-all"
+        >
+          <div className="flex flex-col gap-4 relative z-10">
+            <div className="flex items-center justify-between border-b border-white/10 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-[#FF7222]/20 rounded-lg">
+                  <Fingerprint size={18} className="text-[#FF7222]" />
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-[10px] font-black text-[#FF7222] tracking-widest uppercase">Operator</span>
+                  <p className="text-sm font-[1000] italic uppercase tracking-tighter">Alex Vanguard</p>
+                </div>
+              </div>
+              <div className="flex flex-col items-end">
+                 <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse shadow-[0_0_8px_#22c55e]" />
+                 <span className="text-[7px] text-green-500 font-bold mt-1">ONLINE</span>
+              </div>
+            </div>
 
-      {/* --- USER PROFILE WIDGET --- */}
-      <motion.div 
-        whileHover={{ y: -5 }}
-        className="bg-gradient-to-br from-white/10 to-white/5 p-6 rounded-[3rem] border border-white/10 relative group/profile cursor-pointer shadow-2xl"
-      >
-        <div className="flex items-center gap-4">
-          <div className="relative">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-[#FF7222] to-orange-400 rotate-6 group-hover/profile:rotate-0 transition-all duration-500 overflow-hidden border-2 border-white/20">
-               <img src="https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?q=80&w=100" alt="avatar" className="w-full h-full object-cover" />
+            <div className="grid grid-cols-2 gap-4">
+               <div className="flex items-center gap-2">
+                  <Cpu size={12} className="text-gray-500" />
+                  <span className="text-[8px] font-bold text-gray-400">CORE: v8.2</span>
+               </div>
+               <div className="flex items-center gap-2">
+                  <Activity size={12} className="text-gray-500" />
+                  <span className="text-[8px] font-bold text-gray-400">STB: 100%</span>
+               </div>
             </div>
-            <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 border-2 border-black rounded-full" />
-          </div>
-          <div>
-            <p className="text-xs font-black uppercase italic tracking-tighter">Alex Vanguard</p>
-            <div className="flex items-center gap-1">
-               <span className="w-2 h-2 bg-[#FF7222] rounded-full animate-pulse" />
-               <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Active Level 09</p>
+
+            <div className="flex items-center gap-2 bg-black/40 py-2 px-4 rounded-xl border border-white/5">
+               <ShieldCheck size={12} className="text-[#FF7222]" />
+               <p className="text-[8px] text-gray-400 font-black uppercase tracking-[0.2em]">Level 09 Auth</p>
             </div>
           </div>
+          <div className="absolute inset-0 bg-gradient-to-tr from-[#FF7222]/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity rounded-[2.5rem]" />
+        </motion.div>
+
+        <div className="absolute bottom-[-20px] left-[-20px] opacity-[0.03] pointer-events-none select-none">
+          <h1 className="text-[8rem] font-black italic uppercase leading-none">PULSE</h1>
         </div>
-      </motion.div>
+      </motion.aside>
 
-      {/* --- DECORATIVE PERSPECTIVE SKEW --- */}
-      <div className="absolute bottom-10 -right-10 opacity-5 pointer-events-none">
-        <h1 className="text-[10rem] font-black italic uppercase leading-none">PULSE</h1>
-      </div>
-    </motion.aside>
+      {isOpen && (
+        <div onClick={() => setIsOpen(false)} className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[140] lg:hidden" />
+      )}
+
+      <style jsx>{`
+        @keyframes scanline {
+          0% { transform: translateY(-50%); }
+          100% { transform: translateY(0%); }
+        }
+        .animate-scanline {
+          animation: scanline 8s linear infinite;
+        }
+      `}</style>
+    </>
   );
 };
 
