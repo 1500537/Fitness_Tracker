@@ -5,7 +5,13 @@ import {
     updateUser,
     deleteUser,
     toggleUserBan,
-    checkUserStatus
+    checkUserStatus,
+    getUserSubscription,
+    getCurrentUser,
+    updateCurrentUserPricing,
+    initializeSubscription,
+    forceUpdateSubscription,
+    getSubscriptionTimer
 } from '../controllers/userController.js';
 
 const router = express.Router();
@@ -13,11 +19,29 @@ const router = express.Router();
 // All routes require authentication
 router.use(protect);
 
+// Get subscription timer
+router.get('/me/timer', getSubscriptionTimer);
+
+// Force update subscription
+router.post('/me/force-subscription', forceUpdateSubscription);
+
+// Initialize subscription
+router.post('/me/init-subscription', initializeSubscription);
+
+// Update current user pricing
+router.put('/me/pricing', updateCurrentUserPricing);
+
+// Get current user data
+router.get('/me', getCurrentUser);
+
 // Get all users (Admin only)
 router.get('/all', getAllUsers);
 
 // Check user status (for login validation)
 router.get('/status', checkUserStatus);
+
+// Get user subscription
+router.get('/subscription', getUserSubscription);
 
 // Update user (Admin only)
 router.put('/:userId', updateUser);

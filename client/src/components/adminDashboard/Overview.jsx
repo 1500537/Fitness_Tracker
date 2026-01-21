@@ -156,7 +156,7 @@ const Overview = () => {
           </div>
 
           <div className="h-[500px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={300} minHeight={400}>
               <BarChart data={chartData} margin={{ top: 20, right: 30, left: -20, bottom: 0 }}>
                 <defs>
                   <filter id="glow">

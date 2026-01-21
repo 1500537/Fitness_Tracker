@@ -13,7 +13,10 @@ import {
   X,
   Fingerprint,
   Cpu,
-  Activity
+  Activity,
+  Lock,
+  Crown,
+  Star
 } from 'lucide-react';
 import { useAppContext } from '../../context/useAppContext';
 
@@ -23,14 +26,19 @@ const Sidebar = () => {
   const { user } = useAppContext();
 
   const links = [
-    { name: 'Overview', path: '/dashboard', icon: LayoutDashboard },
-    ...(user?.isAdmin ? 
-      [{ name: 'Admin', path: '/admin', icon: ShieldCheck }] : 
-      [{ name: 'Workouts', path: '/dashboard/workouts', icon: Dumbbell }]
-    ),
-    { name: 'Nutrition', path: '/dashboard/nutrition', icon: Apple },
-    { name: 'Progress', path: '/dashboard/progress', icon: LineChart }
+    { name: 'Overview', path: '/dashboard', icon: LayoutDashboard, tier: 'starter' },
+    { name: 'Workouts', path: '/dashboard/workouts', icon: Dumbbell, tier: 'starter' },
+    { name: 'Nutrition', path: '/dashboard/nutrition', icon: Apple, tier: 'pro' },
+    { name: 'Progress', path: '/dashboard/progress', icon: LineChart, tier: 'elite' }
   ];
+
+  const tiers = { starter: 0, pro: 1, elite: 2 };
+  const tierColors = { starter: '#10B981', pro: '#F59E0B', elite: '#8B5CF6' };
+  const tierIcons = { starter: Zap, pro: Crown, elite: Star };
+
+  // Real-time pricing check: convert to lowercase for case-insensitive matching
+  const userPricing = (user?.pricing || 'starter').toString().toLowerCase();
+  const tierLevel = tiers[userPricing] !== undefined ? tiers[userPricing] : 0;
 
   return (
     <>
@@ -83,38 +91,58 @@ const Sidebar = () => {
 
         {/* --- NAVIGATION LINKS --- */}
         <nav className="flex-1 space-y-4 relative z-10">
-          {links.map((link) => (
-            <NavLink 
-              key={link.name} 
-              to={link.path}
-              end={link.path === '/dashboard'}
-              onClick={() => setIsOpen(false)}
-            >
-              {({ isActive }) => (
-                <div className={`
-                  relative flex items-center justify-between p-5 rounded-3xl transition-all duration-500 group/item overflow-hidden
-                  ${isActive 
-                    ? 'bg-gradient-to-r from-[#FF7222] to-orange-600 text-black shadow-[0_15px_30px_rgba(255,114,34,0.4)] scale-105' 
-                    : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent hover:border-white/10'}
-                `}>
-                  <div className="flex items-center gap-5">
-                    <link.icon 
-                      size={22} 
-                      className={`transition-transform duration-500 group-hover/item:rotate-12 ${isActive ? 'scale-110' : ''}`} 
+          {links.map((link) => {
+            // Real-time access check: always fetch latest pricing from context
+            const currentPricing = (user?.pricing || 'starter').toString().toLowerCase();
+            const currentTierLevel = tiers[currentPricing] !== undefined ? tiers[currentPricing] : 0;
+            const hasAccess = currentTierLevel >= tiers[link.tier];
+            return (
+              <NavLink 
+                key={link.name} 
+                to={hasAccess ? link.path : '/pricing'}
+                end={link.path === '/dashboard'}
+                onClick={() => setIsOpen(false)}
+              >
+                {({ isActive }) => (
+                  <div className={`
+                    relative flex items-center justify-between p-5 rounded-3xl transition-all duration-500 group/item overflow-hidden
+                    ${isActive && hasAccess
+                      ? 'bg-gradient-to-r from-[#FF7222] to-orange-600 text-black shadow-[0_15px_30px_rgba(255,114,34,0.4)] scale-105' 
+                      : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent hover:border-white/10'}
+                    ${!hasAccess ? 'opacity-60' : ''}
+                  `}>
+                    <div className="flex items-center gap-5">
+                      <div className="relative">
+                        <link.icon 
+                          size={22} 
+                          className={`transition-transform duration-500 group-hover/item:rotate-12 ${isActive && hasAccess ? 'scale-110' : ''}`} 
+                        />
+                        {!hasAccess && (
+                          <Lock 
+                            size={12} 
+                            className="absolute -top-1 -right-1 text-red-400"
+                          />
+                        )}
+                      </div>
+                      <span className="font-[1000] italic uppercase text-[10px] tracking-[0.2em]">
+                        {link.name}
+                      </span>
+                      {!hasAccess && (
+                        <span className="text-[8px] bg-red-500/20 text-red-400 px-2 py-1 rounded-full uppercase font-bold">
+                          {link.tier}
+                        </span>
+                      )}
+                    </div>
+                    <ChevronRight 
+                      size={14} 
+                      className={`transition-all duration-300 ${isActive && hasAccess ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-2 group-hover/item:opacity-100 group-hover/item:translate-x-0'}`} 
                     />
-                    <span className="font-[1000] italic uppercase text-[10px] tracking-[0.2em]">
-                      {link.name}
-                    </span>
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover/item:translate-x-full transition-transform duration-1000" />
                   </div>
-                  <ChevronRight 
-                    size={14} 
-                    className={`transition-all duration-300 ${isActive ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-2 group-hover/item:opacity-100 group-hover/item:translate-x-0'}`} 
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover/item:translate-x-full transition-transform duration-1000" />
-                </div>
-              )}
-            </NavLink>
-          ))}
+                )}
+              </NavLink>
+            );
+          })}
         </nav>
 
         {/* --- PROFESSIONAL NEURAL ID --- */}
@@ -130,7 +158,7 @@ const Sidebar = () => {
                 </div>
                 <div className="flex flex-col">
                   <span className="text-[10px] font-black text-[#FF7222] tracking-widest uppercase">Operator</span>
-                  <p className="text-sm font-[1000] italic uppercase tracking-tighter">Alex Vanguard</p>
+                  <p className="text-sm font-[1000] italic uppercase tracking-tighter">{user?.username || 'User'}</p>
                 </div>
               </div>
               <div className="flex flex-col items-end">
@@ -150,10 +178,25 @@ const Sidebar = () => {
                </div>
             </div>
 
-            <div className="flex items-center gap-2 bg-black/40 py-2 px-4 rounded-xl border border-white/5">
-               <ShieldCheck size={12} className="text-[#FF7222]" />
-               <p className="text-[8px] text-gray-400 font-black uppercase tracking-[0.2em]">Level 09 Auth</p>
+            <div className="flex items-center justify-between bg-black/40 py-2 px-4 rounded-xl border border-white/5">
+               <div className="flex items-center gap-2">
+                 <ShieldCheck size={12} className="text-[#FF7222]" />
+                 <p className="text-[8px] text-gray-400 font-black uppercase tracking-[0.2em]">Tier: {userPricing}</p>
+               </div>
+               <div className="flex items-center gap-1">
+                 {React.createElement(tierIcons[userPricing], { size: 12, style: { color: tierColors[userPricing] } })}
+                 <span className="text-[8px] font-bold uppercase" style={{ color: tierColors[userPricing] }}>{userPricing}</span>
+               </div>
             </div>
+            
+            {userPricing !== 'elite' && (
+              <button 
+                onClick={() => navigate('/pricing')}
+                className="text-[8px] bg-gradient-to-r from-purple-500 to-pink-500 text-white px-3 py-2 rounded-lg font-bold uppercase tracking-wider hover:scale-105 transition-transform"
+              >
+                Upgrade Plan
+              </button>
+            )}
           </div>
           <div className="absolute inset-0 bg-gradient-to-tr from-[#FF7222]/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity rounded-[2.5rem]" />
         </motion.div>

@@ -5,7 +5,9 @@ import { useClerk } from '@clerk/clerk-react';
 
 const BanAlert = ({ banAlert, onClose }) => {
   const { signOut } = useClerk();
-  const [countdown, setCountdown] = useState(5);
+  const [countdown, setCountdown] = useState(3);
+
+  console.log('🚫 BanAlert rendering with:', banAlert);
 
   useEffect(() => {
     if (banAlert) {
@@ -95,7 +97,7 @@ const BanAlert = ({ banAlert, onClose }) => {
 
               <div className="bg-black/30 border border-red-500/10 rounded-2xl p-4">
                 <div className="flex items-center gap-3 text-red-300">
-                  <Clock size={16} />
+                  <ShieldX size={16} />
                   <span className="text-sm font-bold">
                     Automatic logout in <span className="text-white">{countdown} seconds</span>
                   </span>

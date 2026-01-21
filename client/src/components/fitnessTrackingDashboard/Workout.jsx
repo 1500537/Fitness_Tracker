@@ -1,13 +1,54 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence, useMotionValue, useSpring, useTransform } from 'framer-motion';
-import { X } from 'lucide-react';
+import { X, Lock, Crown, Star } from 'lucide-react';
 import { eliteData } from '../../assets/assets';
 import WorkoutDetail from './WorkoutDetail';
 import { useAppContext } from '../../context/useAppContext';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
-// --- NEW: NEURAL CONFIRMATION MODAL ---
+// Pricing Lock Component
+const PricingLock = ({ tier, feature, children }) => {
+  const { user } = useAppContext();
+  
+  // Real-time pricing check with case-insensitive comparison
+  const userPricing = (user?.pricing || 'starter').toString().toLowerCase();
+  const tiers = { starter: 0, pro: 1, elite: 2 };
+  const userTierLevel = tiers[userPricing] !== undefined ? tiers[userPricing] : 0;
+  const requiredTierLevel = tiers[tier] || 0;
+  const hasAccess = userTierLevel >= requiredTierLevel;
+  
+  const tierColors = { starter: '#10B981', pro: '#F59E0B', elite: '#8B5CF6' };
+  const tierIcons = { starter: Star, pro: Crown, elite: Crown };
+  const TierIcon = tierIcons[tier];
+  
+  if (hasAccess) return children;
+  
+  return (
+    <div className="relative group">
+      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm rounded-[3rem] z-10 flex items-center justify-center">
+        <div className="text-center p-8">
+          <div className="flex items-center justify-center mb-4">
+            <div className="p-3 rounded-full border-2 mr-3" style={{ borderColor: tierColors[tier] }}>
+              <Lock size={24} style={{ color: tierColors[tier] }} />
+            </div>
+            <TierIcon size={32} style={{ color: tierColors[tier] }} />
+          </div>
+          <h3 className="text-xl font-bold text-white mb-2 capitalize">{tier.toUpperCase()} Feature</h3>
+          <p className="text-sm text-gray-300 mb-4">{feature}</p>
+          <button 
+            onClick={() => window.location.href = '/pricing'}
+            className="px-8 py-3 rounded-xl font-semibold text-black transition-all hover:scale-105"
+            style={{ backgroundColor: tierColors[tier] }}
+          >
+            Upgrade to {tier.toUpperCase()}
+          </button>
+        </div>
+      </div>
+      <div className="opacity-20 pointer-events-none">{children}</div>
+    </div>
+  );
+};
 const NeuralConfirmModal = ({ isOpen, title, message, onConfirm, onCancel }) => (
   <AnimatePresence>
     {isOpen && (
@@ -194,7 +235,8 @@ const WorkoutModule = () => {
     fetchDrills,
     fetchCategories,
     error,
-    setError
+    setError,
+    user
   } = useAppContext();
   
   const [activeWorkout, setActiveWorkout] = useState(null);
@@ -522,23 +564,25 @@ const WorkoutModule = () => {
       )}
 
       {/* --- HUD STATS --- */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 relative z-20">
-        {[
-          { label: 'Active Missions', val: workouts.length, color: 'text-[#FF7222]', icon: '◈' },
-          { label: 'Cleared Ops', val: workouts.filter(v => v.status === 'completed').length, color: 'text-green-400', icon: '✓' },
-          { label: 'Neural Load', val: 'MAX', color: 'text-red-500', icon: '⚠' },
-          { label: 'Sync Status', val: 'OPTML', color: 'text-blue-400', icon: '🌐' }
-        ].map((item, i) => (
-          <motion.div key={i} whileHover={{ y: -5 }} className="bg-white/5 border border-white/10 p-5 md:p-8 rounded-[2rem] md:rounded-[3rem] backdrop-blur-2xl relative overflow-hidden group">
-            <div className="absolute top-0 right-6 text-2xl md:text-4xl opacity-10 font-black">{item.icon}</div>
-            <p className="text-[8px] md:text-[10px] font-black uppercase text-gray-500 tracking-[0.2em] md:tracking-[0.4em] mb-2 md:mb-4">{item.label}</p>
-            <div className="flex items-baseline gap-2">
-                <span className={`text-2xl md:text-4xl font-[1000] italic uppercase tracking-tighter ${item.color}`}>{item.val}</span>
-                <motion.div animate={{ opacity: [0, 1, 0] }} transition={{ repeat: Infinity, duration: 2 }} className={`w-1.5 h-1.5 rounded-full bg-current ${item.color}`} />
-            </div>
-          </motion.div>
-        ))}
-      </div>
+      <PricingLock tier="starter" feature="Basic Workout Statistics">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 relative z-20">
+          {[
+            { label: 'Active Missions', val: workouts.length, color: 'text-[#FF7222]', icon: '◈' },
+            { label: 'Cleared Ops', val: workouts.filter(v => v.status === 'completed').length, color: 'text-green-400', icon: '✓' },
+            { label: 'Neural Load', val: 'MAX', color: 'text-red-500', icon: '⚠' },
+            { label: 'Sync Status', val: 'OPTML', color: 'text-blue-400', icon: '🌐' }
+          ].map((item, i) => (
+            <motion.div key={i} whileHover={{ y: -5 }} className="bg-white/5 border border-white/10 p-5 md:p-8 rounded-[2rem] md:rounded-[3rem] backdrop-blur-2xl relative overflow-hidden group">
+              <div className="absolute top-0 right-6 text-2xl md:text-4xl opacity-10 font-black">{item.icon}</div>
+              <p className="text-[8px] md:text-[10px] font-black uppercase text-gray-500 tracking-[0.2em] md:tracking-[0.4em] mb-2 md:mb-4">{item.label}</p>
+              <div className="flex items-baseline gap-2">
+                  <span className={`text-2xl md:text-4xl font-[1000] italic uppercase tracking-tighter ${item.color}`}>{item.val}</span>
+                  <motion.div animate={{ opacity: [0, 1, 0] }} transition={{ repeat: Infinity, duration: 2 }} className={`w-1.5 h-1.5 rounded-full bg-current ${item.color}`} />
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      </PricingLock>
 
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 md:gap-12 relative z-20">
         <div className="xl:col-span-7 space-y-8 order-2 xl:order-1">
@@ -647,7 +691,8 @@ const WorkoutModule = () => {
         </div>
 
         <div className="xl:col-span-5 order-1 xl:order-2">
-          <PerspectiveCard className="sticky top-10 w-full">
+          <PricingLock tier="starter" feature="Workout Creation & Management">
+            <PerspectiveCard className="sticky top-10 w-full">
             <motion.div 
               layout className={`p-8 md:p-14 rounded-[3rem] md:rounded-[5.5rem] relative overflow-hidden transition-all duration-1000 shadow-2xl border-2 ${
                 editingId ? 'bg-white text-black border-white' : 'bg-[#0f0f0f] text-white border-white/10'
@@ -751,6 +796,7 @@ const WorkoutModule = () => {
               </div>
             </motion.div>
           </PerspectiveCard>
+          </PricingLock>
         </div>
       </div>
       

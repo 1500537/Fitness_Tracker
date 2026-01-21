@@ -28,26 +28,33 @@ export const getDashboardData = async (req, res) => {
         const recentNutrition = nutrition.slice(0, 5);
 
         // Calculate progress statistics
-        const recentProgress = progress.slice(0, 7);
+        const uniqueProgress = progress.filter((item, index, arr) => 
+            arr.findIndex(p => p._id.toString() === item._id.toString()) === index
+        );
+        const recentProgress = uniqueProgress.slice(0, 7);
         const progressChartData = progress.slice(-7).map(p => ({
             date: new Date(p.date).toLocaleDateString('en-GB', { month: 'short', day: 'numeric' }),
             weight: p.weight,
-            bench: p.benchPress
+            bench: p.bench // Fixed: use 'bench' instead of 'benchPress'
         }));
 
         // Create progress bar data for the top visualization
         const progressBarData = progress.slice(-7).map((p, index) => ({
-            date: new Date(p.date).toLocaleDateString('en-US', { weekday: 'short' }),
-            weight: p.weight,
-            performance: Math.min(100, 70 + index * 5), // Mock performance based on progress
-            chest: p.benchPress
+            date: new Date(p.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }),
+            weight: p.bench, // Use bench press weight for the bars
+            performance: Math.min(100, Math.round((p.bench / 150) * 100)), // Calculate performance based on 150kg max
+            bench: p.bench,
+            bodyWeight: p.weight,
+            waist: p.waist,
+            run: p.run || 0,
+            score: p.score || 50
         }));
 
         // Calculate goals and achievements
         const goals = {
             type: 'bench',
             value: 100,
-            current: progress.length > 0 ? progress[0].benchPress : 0
+            current: progress.length > 0 ? progress[0].bench : 0 // Fixed: use 'bench' instead of 'benchPress'
         };
 
         const dashboardData = {

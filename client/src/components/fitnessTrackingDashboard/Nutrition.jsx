@@ -1,12 +1,56 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence, useMotionValue, useSpring, useTransform } from 'framer-motion';
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
+import { Lock, Crown, Star } from 'lucide-react';
 import { useAppContext } from '../../context/useAppContext';
 import { COACH_INTEL } from '../../assets/assets'; 
 
 // --- PDF FIX: Sahi Imports aur Initialization ---
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable'; 
+
+// Pricing Lock Component
+const PricingLock = ({ tier, feature, children }) => {
+  const { user } = useAppContext();
+  
+  // Real-time pricing check with case-insensitive comparison
+  const userPricing = (user?.pricing || 'starter').toString().toLowerCase();
+  const tiers = { starter: 0, pro: 1, elite: 2 };
+  const userTierLevel = tiers[userPricing] !== undefined ? tiers[userPricing] : 0;
+  const requiredTierLevel = tiers[tier] || 0;
+  const hasAccess = userTierLevel >= requiredTierLevel;
+  
+  const tierColors = { starter: '#10B981', pro: '#F59E0B', elite: '#8B5CF6' };
+  const tierIcons = { starter: Star, pro: Crown, elite: Crown };
+  const TierIcon = tierIcons[tier];
+  
+  if (hasAccess) return children;
+  
+  return (
+    <div className="relative group">
+      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm rounded-[3rem] z-10 flex items-center justify-center">
+        <div className="text-center p-8">
+          <div className="flex items-center justify-center mb-4">
+            <div className="p-3 rounded-full border-2 mr-3" style={{ borderColor: tierColors[tier] }}>
+              <Lock size={24} style={{ color: tierColors[tier] }} />
+            </div>
+            <TierIcon size={32} style={{ color: tierColors[tier] }} />
+          </div>
+          <h3 className="text-xl font-bold text-white mb-2 capitalize">{tier.toUpperCase()} Feature</h3>
+          <p className="text-sm text-gray-300 mb-4">{feature}</p>
+          <button 
+            onClick={() => window.location.href = '/pricing'}
+            className="px-8 py-3 rounded-xl font-semibold text-black transition-all hover:scale-105"
+            style={{ backgroundColor: tierColors[tier] }}
+          >
+            Upgrade to {tier.toUpperCase()}
+          </button>
+        </div>
+      </div>
+      <div className="opacity-20 pointer-events-none">{children}</div>
+    </div>
+  );
+};
 
 // --- 1. ELITE CONFIRMATION MODAL ---
 const ConfirmModal = ({ isOpen, onClose, onConfirm, itemName }) => (

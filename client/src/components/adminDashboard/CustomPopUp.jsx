@@ -2,7 +2,7 @@ import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, CheckCircle2, AlertOctagon, UserMinus, ShieldCheck, Loader2, Trash2, Plus, Edit3, AlertCircle, Check } from 'lucide-react';
 
-const CustomPopUp = ({ isOpen, onClose, onConfirm, title, type, children, confirmText = "Confirm", loading = false }) => {
+const CustomPopUp = ({ isOpen, onClose, onConfirm, title, type, pricing, children, confirmText = "Confirm", loading = false }) => {
   // Dynamic icons and colors based on type
   const typeConfigs = {
     add: { icon: <Plus className="text-green-400" size={28} />, glow: "rgba(34, 197, 94, 0.5)", btn: "bg-green-600", title: "INITIALIZE NEW DRILL" },
@@ -11,6 +11,8 @@ const CustomPopUp = ({ isOpen, onClose, onConfirm, title, type, children, confir
     success: { icon: <CheckCircle2 className="text-green-400" size={28} />, glow: "rgba(34, 197, 94, 0.5)", btn: "bg-green-600", title: "OPERATION SUCCESSFUL" },
     confirm: { icon: <AlertCircle className="text-yellow-400" size={28} />, glow: "rgba(234, 179, 8, 0.5)", btn: "bg-yellow-600", title: "CONFIRM ACTION" },
     ban: { icon: <AlertOctagon className="text-yellow-400" size={28} />, glow: "rgba(234, 179, 8, 0.5)", btn: "bg-yellow-600", title: "BAN USER" }
+    ,
+    premium: { icon: <ShieldCheck className="text-indigo-400" size={28} />, glow: "rgba(99, 102, 241, 0.18)", btn: "bg-indigo-600", title: "ACCESS GRANTED" }
   };
 
   const config = typeConfigs[type] || typeConfigs.edit;
@@ -49,7 +51,7 @@ const CustomPopUp = ({ isOpen, onClose, onConfirm, title, type, children, confir
                   <div>
                     <h2 className="text-xl font-black italic text-white tracking-tight leading-none uppercase">{title || config.title}</h2>
                     <p className="text-[9px] text-gray-500 font-bold tracking-[0.3em] uppercase mt-1">
-                      {type === 'success' ? 'Mission Complete' : 'Authorized Session'}
+                      {type === 'premium' ? (pricing ? pricing.toString().toUpperCase() + ' MEMBER' : 'PREMIUM ACCESS') : (type === 'success' ? 'Mission Complete' : 'Authorized Session')}
                     </p>
                   </div>
                 </div>
@@ -62,7 +64,27 @@ const CustomPopUp = ({ isOpen, onClose, onConfirm, title, type, children, confir
 
               {/* Content Area */}
               <div className="relative z-10 mb-10">
-                {children}
+                {type === 'premium' ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+                    <div>
+                      <h3 className="text-lg font-extrabold text-white">{pricing?.toString().toUpperCase() === 'ELITE' ? 'Welcome, Elite Member!' : 'Pro Access Unlocked'}</h3>
+                      <p className="text-sm text-gray-300 mt-2">{pricing?.toString().toLowerCase() === 'elite' ? 'All features are now available — advanced analytics, exports, unlimited plans, priority sync and more.' : 'Pro features unlocked — enhanced tracking, custom plans, and priority sync.'}</p>
+
+                      <ul className="mt-4 space-y-2 text-sm text-gray-200">
+                        <li className="flex items-center gap-2"><CheckCircle2 className="text-green-400" size={16} /> Custom Workout Plans</li>
+                        <li className="flex items-center gap-2"><CheckCircle2 className="text-green-400" size={16} /> Real-time Sync & Priority Analytics</li>
+                        <li className="flex items-center gap-2"><CheckCircle2 className="text-green-400" size={16} /> Exportable Progress Reports{pricing?.toString().toLowerCase() === 'elite' ? '' : ' (Elite only)'}</li>
+                      </ul>
+                    </div>
+                    <div className="flex items-center justify-center">
+                      <div className="w-40 h-40 rounded-3xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center shadow-2xl transform-gpu hover:scale-105 transition-transform">
+                        <ShieldCheck size={48} className="text-white" />
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  children
+                )}
               </div>
 
               {/* Action Buttons */}

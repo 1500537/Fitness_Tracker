@@ -258,8 +258,8 @@ const PlansRevenue = () => {
                 <button className="px-4 py-2 bg-white/5 text-gray-400 rounded-lg text-sm">90D</button>
               </div>
             </div>
-            <div className="h-80">
-              <ResponsiveContainer width="100%" height="100%">
+            <div className="h-80 w-full">
+              <ResponsiveContainer width="100%" height="100%" minWidth={300} minHeight={200}>
                 <AreaChart data={revenueData?.chartData || []}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#333" />
                   <XAxis dataKey="date" stroke="#666" />

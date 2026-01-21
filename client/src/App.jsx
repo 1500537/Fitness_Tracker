@@ -21,6 +21,7 @@ import ProgressModule from './components/fitnessTrackingDashboard/Progress';
 // Admin Dashboard
 import AdminDashboard from './pages/adminDashboard/adminDashboard';
 
+
 // Trial Modals
 import TrialWelcomeModal from './components/TrialWelcomeModal';
 import TrialExpiredModal from './components/TrialExpiredModal';
@@ -33,6 +34,7 @@ import { AppProvider, useAppContext } from './context/useAppContext';
 
 // Clerk Auth
 import { useAuth } from '@clerk/clerk-react';
+
 
 // 3D Page Transition Wrapper
 const PageWrapper = ({ children }) => (
@@ -98,9 +100,14 @@ const AnimatedRoutes = () => {
     }
   }, [userId, isLoaded, user, banAlert, setBanAlert]);
   
-  // Check trial status
+  // Check trial status - exclude admin users
   useEffect(() => {
     if (user && user.pricing === 'starter' && userId) {
+      // Don't show trial modals for admin users
+      if (user.role === 'admin' || user.role === 'owner') {
+        return;
+      }
+      
       const now = new Date();
       const trialEnd = new Date(user.trialEnd);
       const welcomeKey = `trialWelcomeShown_${userId}`;
@@ -118,15 +125,33 @@ const AnimatedRoutes = () => {
     }
   }, [user, userId]);
   
-  // Show loading until authentication is determined
-  if (!isLoaded) {
+  // Show loading until authentication and user data is loaded, but show ban alert if detected
+  if (!isLoaded || (userId && !user && !banAlert)) {
     return (
       <div className="min-h-screen bg-[#050505] flex items-center justify-center">
         <div className="text-white text-xl">Loading...</div>
+        {banAlert && (
+          <BanAlert 
+            banAlert={banAlert} 
+            onClose={() => setBanAlert(null)} 
+          />
+        )}
       </div>
     );
   }
   
+  // If user is banned, show only ban alert
+  if (banAlert) {
+    return (
+      <div className="min-h-screen bg-[#050505]">
+        <BanAlert 
+          banAlert={banAlert} 
+          onClose={() => setBanAlert(null)} 
+        />
+      </div>
+    );
+  }
+
   // If trying to access dashboard or admin without authentication, redirect to homepage
   if ((isDashboard || isAdmin) && !userId) {
     return <Navigate to="/" state={{ from: location }} replace />;
@@ -137,14 +162,20 @@ const AnimatedRoutes = () => {
     return <Navigate to="/" state={{ from: location }} replace />;
   }
 
-  // If trying to access admin without admin privileges, redirect to dashboard
-  if (isAdmin && user && user.role !== 'admin' && user.role !== 'owner') {
-    return <Navigate to="/dashboard" state={{ from: location }} replace />;
-  }
-
-  // If trying to access dashboard without user role, redirect to home
-  if (isDashboard && user && user.role === 'admin') {
-    return <Navigate to="/admin" state={{ from: location }} replace />;
+  // Role-based redirects - Admin users ko admin dashboard, Regular users ko tracker dashboard
+  if (userId && user) {
+    const isAdminUser = user.role === 'admin' || user.role === 'owner';
+    const isRegularUser = user.role === 'user';
+    
+    // Admin trying to access user dashboard -> redirect to admin
+    if (isAdminUser && isDashboard) {
+      return <Navigate to="/admin" state={{ from: location }} replace />;
+    }
+    
+    // Regular user trying to access admin dashboard -> redirect to user dashboard
+    if (isRegularUser && isAdmin) {
+      return <Navigate to="/dashboard" state={{ from: location }} replace />;
+    }
   }
 
   return (
@@ -159,7 +190,7 @@ const AnimatedRoutes = () => {
           <Route path="/" element={<PageWrapper><Home /></PageWrapper>} />
           <Route path="/pricing" element={<PageWrapper><Pricing /></PageWrapper>} />
 
-          {/* 2. ELITE DASHBOARD SECTION */}
+          {/* 2. TRACKER DASHBOARD SECTION */}
           <Route path="/dashboard" element={<DashboardLayout />}>
             <Route index element={<PageWrapper><Dashboard /></PageWrapper>} />
             <Route path="workouts" element={<PageWrapper><WorkoutModule /></PageWrapper>} />
@@ -167,7 +198,9 @@ const AnimatedRoutes = () => {
             <Route path="progress" element={<PageWrapper><ProgressModule /></PageWrapper>} />
           </Route>
 
-          {/* 3. ADMIN DASHBOARD */}
+       
+          
+         
           <Route path="/admin" element={<PageWrapper><AdminDashboard /></PageWrapper>} />
 
         </Routes>

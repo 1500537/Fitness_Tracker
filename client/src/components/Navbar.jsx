@@ -1,19 +1,140 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
-import { Link as ScrollLink } from 'react-scroll'; // Smooth scroll ke liye
-import { motion } from 'framer-motion';
+import { Link as ScrollLink } from 'react-scroll';
+import { motion, AnimatePresence } from 'framer-motion';
 import { SignedIn, SignedOut, SignInButton, UserButton, useUser } from '@clerk/clerk-react';
+import { useNavigate } from 'react-router-dom';
+import CustomPopUp from './adminDashboard/CustomPopUp';
 import { useAppContext } from '../context/useAppContext';
+import { Clock, Crown, Zap, Calendar } from 'lucide-react';
 
 const Navbar = () => {
   const [hoveredItem, setHoveredItem] = useState(null);
+  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
+  const [timerData, setTimerData] = useState({ timeLeft: 0, status: 'expired', planName: 'starter', billingCycle: 'monthly' });
   const { user, isLoaded } = useUser();
-  const { user: appUser } = useAppContext();
+  const { user: appUser, fetchUser, showPremiumModal, setShowPremiumModal } = useAppContext();
+  const navigate = useNavigate();
   
-  // Navigation items logic
+  // Fetch timer data from API
+  const fetchTimerData = async () => {
+    if (!user) return;
+    
+    try {
+      const response = await fetch('http://localhost:3000/api/users/me/timer', {
+        headers: {
+          'Authorization': `Bearer ${await window.Clerk.session.getToken()}`
+        }
+      });
+      const data = await response.json();
+      
+      if (data.success) {
+        setTimerData(data.timer);
+        console.log('🕰️ Timer data fetched:', data.timer);
+      }
+    } catch (error) {
+      console.error('❌ Error fetching timer:', error);
+    }
+  };
+  
+  // Fetch timer data when user loads and every 5 seconds
+  useEffect(() => {
+    if (user) {
+      fetchTimerData();
+      const interval = setInterval(fetchTimerData, 5000); // Update every 5 seconds
+      return () => clearInterval(interval);
+    }
+  }, [user]);
+  
+  // Fetch user data when Clerk user is loaded
+  useEffect(() => {
+    // Fetch app user when Clerk user is loaded or changes.
+    // If appUser exists but belongs to a different Clerk id, refetch.
+    if (isLoaded && user) {
+      const needsFetch = !appUser || (appUser?.clerkId && appUser.clerkId !== user.id);
+      if (needsFetch) {
+        console.log('Navbar - Fetching user data for:', user.id);
+        fetchUser();
+      }
+    }
+  }, [isLoaded, user, appUser, fetchUser]);
+  
+  // Force re-render when appUser changes
+  useEffect(() => {
+    if (appUser) {
+      console.log('Navbar - App user updated, role:', appUser.role);
+      // Force component re-render by updating state
+      setHoveredItem(null);
+    }
+  }, [appUser, appUser?.role]); // Added appUser.role as dependency
+  
+  // Navigation items logic - Show appropriate dashboard link based on user role
   const publicItems = ['Home', 'About', 'Pricing', 'Contact'];
-  const trackerItem = appUser?.isAdmin ? 'Admin' : 'Tracker';
-  const currentNavItems = user ? [...publicItems, trackerItem] : publicItems;
+  const getDashboardItem = () => {
+    if (!user || !appUser) return null;
+    console.log('Navbar - User role:', appUser.role, 'Full user data:', appUser);
+
+    const role = (appUser.role || '').toString().toLowerCase();
+    if (role === 'user') {
+      console.log('Showing Tracker for user role');
+      return 'Tracker';
+    }
+    if (role === 'admin' || role === 'owner') {
+      console.log('Showing Admin for admin/owner role');
+      return 'Admin';
+    }
+
+    // Unknown role — don't show dashboard link
+    return null;
+  };
+  const dashboardItem = getDashboardItem();
+  const currentNavItems = dashboardItem ? [...publicItems, dashboardItem] : publicItems;
+
+  const scrollToPricing = () => {
+    setShowSubscriptionModal(false);
+    const pricingElement = document.getElementById('pricing');
+    if (pricingElement) {
+      pricingElement.scrollIntoView({ behavior: 'smooth' });
+    } else {
+      // If not on home page, navigate to pricing page
+      window.location.href = '/#pricing';
+    }
+  };
+
+  const formatTime = (seconds, status) => {
+    if (status === 'unlimited') return { text: 'Unlimited', color: 'text-green-400' };
+    if (status === 'expired' || !seconds || seconds <= 0) return { text: 'Expired', color: 'text-red-400' };
+    
+    const days = Math.floor(seconds / (24 * 60 * 60));
+    const hours = Math.floor((seconds % (24 * 60 * 60)) / (60 * 60));
+    const minutes = Math.floor((seconds % (60 * 60)) / 60);
+    
+    let text = '';
+    let color = 'text-green-400';
+    
+    if (days > 7) {
+      text = `${days}d ${hours}h`;
+      color = 'text-green-400';
+    } else if (days > 0) {
+      text = `${days}d ${hours}h`;
+      color = 'text-yellow-400';
+    } else if (hours > 0) {
+      text = `${hours}h ${minutes}m`;
+      color = 'text-orange-400';
+    } else {
+      text = `${minutes}m`;
+      color = 'text-red-400';
+    }
+    
+    return { text, color };
+  };
+  
+  const getPlanIcon = () => {
+    const plan = timerData.planName || 'starter';
+    if (plan === 'elite') return { icon: Crown, color: 'from-purple-500 to-purple-600' };
+    if (plan === 'pro') return { icon: Zap, color: 'from-blue-500 to-blue-600' };
+    return { icon: Clock, color: 'from-gray-500 to-gray-600' };
+  };
 
   return (
     <nav className="flex items-center justify-between w-full px-6 md:px-16 py-6 md:py-10 bg-transparent absolute top-0 z-[100]">
@@ -38,13 +159,36 @@ const Navbar = () => {
               className="relative z-10"
             >
               {(item === 'Tracker' || item === 'Admin') ? (
-                // Tracker/Admin ke liye real route
-                <RouterLink 
-                  to={item === 'Admin' ? '/admin' : '/dashboard'} 
+                // Dashboard routes: use programmatic navigation so we can pass pricing and show premium popup
+                <button
+                  onClick={() => {
+                    const path = item === 'Admin' ? '/admin' : '/dashboard';
+                    // Only show premium popup for regular users, not admins
+                    if (item === 'Tracker' && appUser?.role === 'user') {
+                      try {
+                        const pricing = (appUser?.pricing || '').toString().toLowerCase();
+                        if (pricing === 'pro' || pricing === 'elite') {
+                          setShowPremiumModal(true);
+                        }
+                        // If user clicked Tracker and is elite, set a flag so App shows an elite modal once on /dashboard
+                        if (pricing === 'elite') {
+                          try {
+                            const flagKey = `eliteModalNext_${appUser?.clerkId || 'anon'}`;
+                            localStorage.setItem(flagKey, 'true');
+                          } catch (e) {
+                            console.warn('Unable to set elite modal flag', e);
+                          }
+                        }
+                      } catch (err) {
+                        console.warn('Pricing check failed', err);
+                      }
+                    }
+                    navigate(path, { state: { pricing: appUser?.pricing } });
+                  }}
                   className={`px-10 py-3 text-[13px] font-black uppercase tracking-[0.2em] italic transition-all duration-500 block ${hoveredItem === item ? 'text-white' : 'text-black/70'}`}
                 >
                   {item}
-                </RouterLink>
+                </button>
               ) : (
                 // Baki items ke liye smooth scroll
                 <ScrollLink
@@ -104,21 +248,52 @@ const Navbar = () => {
               <motion.div 
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
-                className="flex items-center gap-3 bg-white/10 backdrop-blur-xl p-1.5 pr-4 rounded-full border border-white/20 shadow-xl hover:border-[#FF7222]/50 transition-all duration-500"
+                className="flex items-center gap-3"
               >
-                <UserButton 
-                  afterSignOutUrl="/"
-                  appearance={{
-                    elements: {
-                      userButtonAvatarBox: "w-10 h-10 border-2 border-[#FF7222] shadow-[0_0_15px_rgba(255,114,34,0.3)]",
-                    }
-                  }}
-                />
-                <div className="hidden sm:flex flex-col items-start leading-none">
-                  <span className="text-[8px] font-black uppercase tracking-widest text-[#FF7222]">Neural Active</span>
-                  <span className="text-[11px] font-black uppercase text-white italic truncate max-w-[80px]">
-                    {user?.firstName}
-                  </span>
+                {/* Professional Plan Status with Real-time Timer - Only for regular users */}
+                {appUser?.role === 'user' && (
+                  <motion.button
+                    onClick={() => setShowSubscriptionModal(true)}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="relative group"
+                  >
+                    <div className={`flex items-center gap-2 bg-gradient-to-r ${getPlanIcon().color} p-2 pr-3 rounded-full shadow-lg hover:shadow-xl transition-all duration-300`}>
+                      <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
+                        {(() => {
+                          const { icon: PlanIcon } = getPlanIcon();
+                          return <PlanIcon size={16} className="text-white" />;
+                        })()}
+                      </div>
+                      <div className="hidden sm:flex flex-col items-start leading-none">
+                        <span className="text-[8px] font-black uppercase tracking-wider text-white/80">
+                          {timerData.billingCycle}
+                        </span>
+                        <span className={`text-[10px] font-mono font-bold ${formatTime(timerData.timeLeft, timerData.status).color}`}>
+                          {formatTime(timerData.timeLeft, timerData.status).text}
+                        </span>
+                      </div>
+                      <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+                    </div>
+                  </motion.button>
+                )}
+
+                {/* User Profile */}
+                <div className="flex items-center gap-3 bg-white/10 backdrop-blur-xl p-1.5 pr-4 rounded-full border border-white/20 shadow-xl hover:border-[#FF7222]/50 transition-all duration-500">
+                  <UserButton 
+                    afterSignOutUrl="/"
+                    appearance={{
+                      elements: {
+                        userButtonAvatarBox: "w-10 h-10 border-2 border-[#FF7222] shadow-[0_0_15px_rgba(255,114,34,0.3)]",
+                      }
+                    }}
+                  />
+                  <div className="hidden sm:flex flex-col items-start leading-none">
+                    <span className="text-[8px] font-black uppercase tracking-widest text-[#FF7222]">Neural Active</span>
+                    <span className="text-[11px] font-black uppercase text-white italic truncate max-w-[80px]">
+                      {user?.firstName} • {appUser?.pricing || 'starter'}
+                    </span>
+                  </div>
                 </div>
               </motion.div>
             </SignedIn>
@@ -134,6 +309,91 @@ const Navbar = () => {
            <ScrollLink key={item} to={item.toLowerCase()} smooth={true} className="text-[10px] font-black uppercase text-white/40 hover:text-[#FF7222] italic tracking-widest transition-colors cursor-pointer">{item}</ScrollLink>
         ))}
       </div>
+
+      {/* Plan Modal */}
+      <AnimatePresence>
+        {/* Use CustomPopUp for premium UI so we don't create new files */}
+        <CustomPopUp
+          isOpen={showPremiumModal}
+          onClose={() => setShowPremiumModal(false)}
+          title={appUser?.pricing ? `${appUser.pricing.toString().toUpperCase()} Access` : 'Premium Access'}
+          type="premium"
+          pricing={appUser?.pricing}
+          onConfirm={() => setShowPremiumModal(false)}
+        />
+        {showSubscriptionModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[300] flex items-center justify-center p-4"
+            onClick={() => setShowSubscriptionModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-gradient-to-br from-[#111] to-[#000] rounded-3xl p-8 max-w-md w-full border border-white/10 shadow-2xl"
+            >
+              <div className="text-center mb-6">
+                <div className="w-16 h-16 bg-gradient-to-r from-[#FF7222] to-orange-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Crown size={32} className="text-white" />
+                </div>
+                <h3 className="text-2xl font-bold text-white mb-2">Current Plan</h3>
+                <p className="text-gray-400 text-sm">Your fitness plan status</p>
+              </div>
+
+              <div className="space-y-4 mb-6">
+                <div className="bg-white/5 rounded-2xl p-4 border border-white/10">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-gray-400 text-sm font-medium">Plan</span>
+                    <Zap size={16} className="text-[#FF7222]" />
+                  </div>
+                  <p className="text-white font-bold text-lg capitalize">
+                    {appUser?.pricing || 'Starter'} Plan
+                  </p>
+                </div>
+
+                <div className="bg-white/5 rounded-2xl p-4 border border-white/10">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-gray-400 text-sm font-medium">Billing</span>
+                    <Calendar size={16} className="text-[#FF7222]" />
+                  </div>
+                  <p className="text-white font-bold text-lg capitalize">
+                    {appUser?.subscription?.billingCycle || 'Monthly'}
+                  </p>
+                </div>
+
+                <div className="bg-white/5 rounded-2xl p-4 border border-white/10">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-gray-400 text-sm font-medium">Time Remaining</span>
+                    <Clock size={16} className="text-[#FF7222]" />
+                  </div>
+                  <p className={`font-bold text-2xl font-mono ${formatTime(timerData.timeLeft, timerData.status).color}`}>
+                    {formatTime(timerData.timeLeft, timerData.status).text}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowSubscriptionModal(false)}
+                  className="flex-1 py-3 px-4 bg-white/10 text-white rounded-xl font-medium hover:bg-white/20 transition-colors"
+                >
+                  Close
+                </button>
+                <button
+                  onClick={scrollToPricing}
+                  className="flex-1 py-3 px-4 bg-gradient-to-r from-[#FF7222] to-orange-600 text-white rounded-xl font-bold hover:shadow-lg transition-all"
+                >
+                  View Plans
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </nav>
   );
 };

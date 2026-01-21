@@ -10,8 +10,6 @@ const connectDB = async () => {
         return;
     }
 
-    console.log("MONGODB_URI:", process.env.MONGODB_URI);
-
     try {
         // Mongoose settings
         mongoose.set('strictQuery', true);
@@ -22,11 +20,14 @@ const connectDB = async () => {
         });
 
         isConnected = db.connections[0].readyState;
-        console.log("Database connected successfully to Atlas");
+        console.log("✅ Database connected successfully to Atlas");
+        console.log("📊 Database Name: TrackForce");
 
     } catch (error) {
-        console.error("MongoDB Connection Error:", error.message);
+        console.error("❌ MongoDB Connection Error:", error.message);
+        console.error("🔧 Please check your MONGODB_URI and network connection");
         // Error par crash na ho balki log kare
+        process.exit(1);
     }
 };
 

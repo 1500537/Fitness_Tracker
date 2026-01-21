@@ -1,13 +1,82 @@
-import React, { useState, useEffect } from 'react';
-import { assets, pricingData, testimonialsData } from "../assets/assets";
+import React, { useState, useEffect, useRef } from 'react';
+import { assets, testimonialsData } from "../assets/assets";
+import { useAppContext } from '../context/useAppContext';
+import ErrorBoundary from '../components/ErrorBoundary';
+import { useUser } from '@clerk/clerk-react';
+import { Crown, Star, Zap } from 'lucide-react';
 
 const TestimonialPricing = () => {
+  const { plans, plansLoading, fetchPlans, error, user } = useAppContext();
+  const { user: clerkUser } = useUser();
   const [activeStory, setActiveStory] = useState(0);
   const [isVisible, setIsVisible] = useState(false);
+  const [billingCycle, setBillingCycle] = useState('monthly');
+  const hasFetched = useRef(false);
+
+  const userTier = user?.pricing || 'starter';
+  const tierIcons = { starter: Zap, pro: Crown, elite: Star };
+  const tierColors = { starter: '#10B981', pro: '#F59E0B', elite: '#8B5CF6' };
 
   useEffect(() => {
     setIsVisible(true);
-  }, []);
+    if (!hasFetched.current && fetchPlans) {
+      fetchPlans().catch(console.error);
+      hasFetched.current = true;
+    }
+  }, [fetchPlans]);
+
+  const handleSubscribe = async (plan) => {
+    if (!clerkUser) {
+      alert('Please login to subscribe');
+      return;
+    }
+
+    if (plan.name.toLowerCase() === userTier) {
+      return; // Already subscribed
+    }
+
+    console.log('💳 Subscribing to plan:', plan.name);
+    console.log('💰 Plan details:', { 
+      name: plan.name, 
+      price: billingCycle === 'monthly' ? plan.monthlyPrice : plan.annualPrice,
+      billingCycle 
+    });
+
+    try {
+      const response = await fetch('http://localhost:3000/api/stripe/create-checkout-session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${await window.Clerk.session.getToken()}`
+        },
+        body: JSON.stringify({
+          planId: plan._id,
+          planName: plan.name,
+          price: billingCycle === 'monthly' ? plan.monthlyPrice : plan.annualPrice,
+          billingCycle
+        })
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        if (data.url) {
+          console.log('🚀 Redirecting to Stripe checkout for plan:', plan.name);
+          window.location.href = data.url;
+        } else if (data.shouldRefresh) {
+          // Free plan - refresh user data
+          console.log('🆓 Free plan selected, refreshing page');
+          window.location.reload();
+        }
+      } else {
+        console.error('❌ Payment setup failed:', data.message);
+        alert('Payment setup failed. Please try again.');
+      }
+    } catch (error) {
+      console.error('💥 Payment error:', error);
+      alert('Payment failed. Please try again.');
+    }
+  };
 
   return (
     <section className="min-h-screen bg-[#050505] font-outfit py-16 md:py-32 relative overflow-hidden selection:bg-[#FF7222] selection:text-white">
@@ -93,54 +162,140 @@ const TestimonialPricing = () => {
 
           {/* --- RIGHT: THE ARCHITECT PRICING --- */}
           <div className={`lg:col-span-7 flex flex-col justify-center lg:pl-10 xl:pl-16 transition-all duration-1000 delay-500 transform ${isVisible ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'}`}>
-            <div className="mb-12 md:mb-20 text-center lg:text-left mt-10 lg:mt-0">
+            <div className="mb-8 md:mb-12 text-center lg:text-left mt-10 lg:mt-0">
               <div className="flex items-center justify-center lg:justify-start gap-4 mb-4">
                 <div className="w-8 h-[2px] bg-[#FF7222]" />
                 <span className="text-[#FF7222] font-black uppercase tracking-widest text-[10px] md:text-xs">Architectural Pricing</span>
               </div>
-              <h2 className="text-5xl sm:text-7xl md:text-9xl lg:text-[100px] xl:text-[120px] font-[1000] italic uppercase leading-[0.9] lg:leading-[0.75] tracking-tighter text-white">
+              <h2 className="text-3xl sm:text-5xl md:text-7xl lg:text-8xl xl:text-9xl font-[1000] italic uppercase leading-[0.9] lg:leading-[0.75] tracking-tighter text-white">
                 Engineer <br className="hidden md:block" />
                 <span className="text-transparent" style={{ WebkitTextStroke: '1px md:2px #FF7222' }}>Your Body</span>
               </h2>
+              
+              {/* Billing Toggle */}
+              <div className="flex justify-center lg:justify-start mt-6">
+                <div className="bg-white/5 p-1 rounded-2xl border border-white/10 flex items-center backdrop-blur-md">
+                  <button 
+                    onClick={() => setBillingCycle('monthly')}
+                    className={`px-4 md:px-6 py-2 rounded-xl text-xs font-black uppercase transition-all ${
+                      billingCycle === 'monthly' 
+                        ? 'bg-[#FF7222] text-black' 
+                        : 'text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    Monthly
+                  </button>
+                  <button 
+                    onClick={() => setBillingCycle('annual')}
+                    className={`px-4 md:px-6 py-2 rounded-xl text-xs font-black uppercase transition-all ${
+                      billingCycle === 'annual' 
+                        ? 'bg-[#FF7222] text-black' 
+                        : 'text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    Annual <span className="ml-1 opacity-60 text-[8px]">-20%</span>
+                  </button>
+                </div>
+              </div>
             </div>
 
-            <div className="space-y-4 md:space-y-8">
-              {pricingData.map((plan, idx) => (
-                <div 
-                  key={plan.id}
-                  className={`group relative flex flex-col sm:flex-row items-center justify-between p-6 md:p-12 rounded-[30px] md:rounded-[50px] transition-all duration-500 cursor-pointer overflow-hidden border
-                    ${plan.popular 
-                      ? 'bg-white text-black border-white shadow-xl scale-[1] lg:scale-[1.03]' 
-                      : 'bg-[#111] text-white border-white/5 hover:border-[#FF7222]'}`}
-                >
-                  <div className="absolute inset-0 bg-[#FF7222] translate-y-[101%] group-hover:translate-y-0 transition-transform duration-700 ease-in-out" />
-
-                  <div className="relative z-10 flex flex-col sm:flex-row items-center gap-4 md:gap-12 text-center sm:text-left">
-                    <div className="flex flex-col">
-                      <span className="text-4xl md:text-6xl font-[1000] italic tracking-tighter leading-none group-hover:text-white transition-colors">
-                        {plan.monthlyPrice === 0 ? 'FREE' : `$${plan.monthlyPrice}`}
-                      </span>
-                      {plan.monthlyPrice !== 0 && <span className="text-[10px] md:text-sm font-black opacity-40 uppercase group-hover:text-white transition-colors">Per Month</span>}
-                    </div>
-
-                    <div className="hidden sm:block h-12 md:h-16 w-[1px] bg-current opacity-10 group-hover:bg-white" />
-
-                    <div>
-                      <h4 className="text-3xl md:text-5xl font-[1000] italic uppercase tracking-tighter leading-none mb-1 md:mb-2 group-hover:text-white transition-colors">{plan.name}</h4>
-                      <p className="font-black italic opacity-40 uppercase tracking-[0.2em] text-[8px] md:text-[10px] group-hover:text-white transition-colors">
-                        {plan.tagline}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className={`relative z-10 mt-6 sm:mt-0 w-12 h-12 md:w-20 md:h-20 rounded-full flex items-center justify-center border transition-all duration-700 
-                    ${plan.popular ? 'border-black/10 bg-black/5' : 'border-white/10 bg-white/5'} group-hover:border-white group-hover:rotate-45`}>
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="md:w-8 md:h-8 group-hover:text-white transition-colors">
-                      <path d="M7 17L17 7M17 7H7M17 7V17" />
-                    </svg>
+            <div className="space-y-3 md:space-y-6">
+              {plansLoading ? (
+                <div className="flex items-center justify-center py-20">
+                  <div className="text-center">
+                    <div className="w-12 h-12 border-4 border-[#FF7222]/30 border-t-[#FF7222] rounded-full animate-spin mx-auto mb-4"></div>
+                    <p className="text-gray-500 text-sm font-bold uppercase tracking-widest">Loading Plans...</p>
                   </div>
                 </div>
-              ))}
+              ) : error ? (
+                <div className="text-center py-20">
+                  <p className="text-red-400 text-sm font-bold uppercase tracking-widest">{error}</p>
+                </div>
+              ) : plans && plans.length > 0 ? (
+                plans.map((plan, idx) => {
+                  const currentPrice = billingCycle === 'monthly' ? plan.monthlyPrice : plan.annualPrice;
+                  const savings = billingCycle === 'annual' && plan.monthlyPrice > 0 
+                    ? (plan.monthlyPrice - plan.annualPrice) * 12 
+                    : 0;
+                  
+                  return (
+                    <div 
+                      key={plan._id}
+                      className={`group relative flex flex-col sm:flex-row items-center justify-between p-4 md:p-8 lg:p-12 rounded-[20px] md:rounded-[30px] lg:rounded-[50px] transition-all duration-500 cursor-pointer overflow-hidden border
+                        ${plan.name.toLowerCase() === userTier 
+                          ? 'bg-gradient-to-r from-green-500 to-green-600 text-white border-green-400 scale-[1.02]' 
+                          : plan.popular 
+                          ? 'bg-white text-black border-white shadow-xl scale-[1] lg:scale-[1.03]' 
+                          : 'bg-[#111] text-white border-white/5 hover:border-[#FF7222]'}`}
+                    >
+                      <div className="absolute inset-0 bg-[#FF7222] translate-y-[101%] group-hover:translate-y-0 transition-transform duration-700 ease-in-out" />
+
+                      <div className="relative z-10 flex flex-col sm:flex-row items-center gap-3 md:gap-8 lg:gap-12 text-center sm:text-left w-full">
+                        <div className="flex flex-col items-center sm:items-start">
+                          <span className="text-2xl md:text-4xl lg:text-6xl font-[1000] italic tracking-tighter leading-none group-hover:text-white transition-colors">
+                            {currentPrice === 0 ? 'FREE' : `$${currentPrice}`}
+                          </span>
+                          <div className="flex flex-col items-center sm:items-start">
+                            {currentPrice !== 0 && (
+                              <span className="text-[8px] md:text-[10px] lg:text-sm font-black opacity-40 uppercase group-hover:text-white transition-colors">
+                                Per {billingCycle === 'monthly' ? 'Month' : 'Month (Billed Annually)'}
+                              </span>
+                            )}
+                            {savings > 0 && (
+                              <span className="text-[6px] md:text-[8px] lg:text-[10px] font-black text-[#FF7222] mt-1 uppercase tracking-widest bg-[#FF7222]/10 px-2 py-1 rounded group-hover:text-white group-hover:bg-white/20">
+                                Save ${savings} Yearly
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="hidden sm:block h-8 md:h-12 lg:h-16 w-[1px] bg-current opacity-10 group-hover:bg-white" />
+
+                        <div className="flex-1">
+                          <h4 className="text-xl md:text-3xl lg:text-5xl font-[1000] italic uppercase tracking-tighter leading-none mb-1 md:mb-2 group-hover:text-white transition-colors">
+                            {plan.name}
+                          </h4>
+                          <p className="font-black italic opacity-40 uppercase tracking-[0.2em] text-[6px] md:text-[8px] lg:text-[10px] group-hover:text-white transition-colors">
+                            {plan.tagline}
+                          </p>
+                        </div>
+
+                        <button
+                          onClick={() => handleSubscribe(plan)}
+                          className={`relative z-10 mt-4 sm:mt-0 w-full sm:w-auto px-6 md:px-8 py-3 md:py-4 rounded-full font-black uppercase text-[10px] md:text-xs tracking-widest transition-all duration-300 cursor-pointer
+                            ${plan.name.toLowerCase() === userTier 
+                              ? 'bg-white text-green-600 border border-white cursor-not-allowed' 
+                              : plan.popular 
+                              ? 'bg-black text-white hover:bg-gray-800 border border-black group-hover:bg-white group-hover:text-black group-hover:border-white' 
+                              : 'bg-[#FF7222] text-black hover:bg-[#e6651f] group-hover:bg-white group-hover:text-black'}`}
+                        >
+                          {plan.name.toLowerCase() === userTier ? 'Current Plan' : 'Subscribe'}
+                        </button>
+                      </div>
+
+                      {plan.popular && (
+                        <div className="absolute -top-3 -right-1 sm:-top-2 sm:right-4">
+                          <div className="relative">
+                            <div className="bg-gradient-to-r from-[#FF7222] to-[#e6651f] text-white text-[8px] sm:text-[10px] md:text-xs font-[1000] uppercase px-3 sm:px-4 md:px-6 py-1.5 md:py-2 rounded-b-xl sm:rounded-b-2xl italic tracking-[0.15em] sm:tracking-[0.2em] shadow-xl border-2 border-white/20">
+                              <div className="flex items-center gap-1">
+                                <svg className="w-2 h-2 sm:w-3 sm:h-3 fill-current" viewBox="0 0 24 24">
+                                  <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                                </svg>
+                                <span>POPULAR</span>
+                              </div>
+                            </div>
+                            <div className="absolute inset-0 bg-gradient-to-r from-[#FF7222] to-[#e6651f] rounded-b-xl sm:rounded-b-2xl blur-sm opacity-50 -z-10"></div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="text-center py-20">
+                  <p className="text-gray-500 text-sm font-bold uppercase tracking-widest">No plans available</p>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -178,4 +333,10 @@ const TestimonialPricing = () => {
   );
 };
 
-export default TestimonialPricing;
+const PricingWithErrorBoundary = () => (
+  <ErrorBoundary>
+    <TestimonialPricing />
+  </ErrorBoundary>
+);
+
+export default PricingWithErrorBoundary;

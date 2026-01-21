@@ -1,7 +1,127 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { motion, useMotionValue, useSpring, useTransform } from 'framer-motion';
+import { motion, useMotionValue, useSpring, useTransform, AnimatePresence } from 'framer-motion';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, CartesianGrid } from 'recharts';
+import { Lock, Crown, Zap, Star, ChevronDown, ChevronUp, Shield, X } from 'lucide-react';
 import { useAppContext } from '../../context/useAppContext';
+import { useLocation } from 'react-router-dom';
+import { useAuth } from '@clerk/clerk-react';
+
+// --- ELITE ACCESS MODAL ---
+const EliteAccessModal = ({ isOpen, onClose, onConfirm, userPricing }) => {
+  if (!isOpen) return null;
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-xl"
+      >
+        <motion.div
+          initial={{ scale: 0.8, opacity: 0, rotateY: -15 }}
+          animate={{ scale: 1, opacity: 1, rotateY: 0 }}
+          exit={{ scale: 0.8, opacity: 0, rotateY: 15 }}
+          transition={{ type: "spring", damping: 25, stiffness: 300 }}
+          className="relative bg-gradient-to-br from-[#1a1a1a] via-[#0f0f0f] to-black border-2 border-[#8B5CF6]/30 rounded-[3rem] p-8 max-w-lg mx-4 shadow-[0_40px_120px_rgba(139,92,246,0.3)]"
+        >
+          {/* Close Button */}
+          <button
+            onClick={onClose}
+            className="absolute top-6 right-6 w-10 h-10 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center transition-all duration-300 group"
+          >
+            <X size={20} className="text-white/70 group-hover:text-white" />
+          </button>
+
+          {/* Header */}
+          <div className="text-center mb-8">
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ delay: 0.2, type: "spring", damping: 20 }}
+              className="w-20 h-20 bg-gradient-to-br from-[#8B5CF6] to-[#6366F1] rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-[0_20px_40px_rgba(139,92,246,0.4)]"
+            >
+              <Shield size={40} className="text-white" />
+            </motion.div>
+            
+            <motion.h2
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.3 }}
+              className="text-4xl font-black text-white mb-2"
+            >
+              <span className="bg-gradient-to-r from-[#8B5CF6] to-[#6366F1] bg-clip-text text-transparent">ELITE</span> ACCESS
+            </motion.h2>
+            
+            <motion.p
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.4 }}
+              className="text-sm font-bold text-[#8B5CF6] uppercase tracking-[0.3em]"
+            >
+              ELITE MEMBER
+            </motion.p>
+          </div>
+
+          {/* Welcome Message */}
+          <motion.div
+            initial={{ y: 30, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.5 }}
+            className="mb-8"
+          >
+            <h3 className="text-2xl font-bold text-white mb-4">Welcome, Elite Member!</h3>
+            <p className="text-gray-300 leading-relaxed mb-6">
+              All features are now available — advanced analytics, exports, unlimited plans, priority sync and more.
+            </p>
+            
+            {/* Features List */}
+            <div className="space-y-3">
+              {[
+                'Custom Workout Plans',
+                'Real-time Sync & Priority Analytics',
+                'Exportable Progress Reports'
+              ].map((feature, index) => (
+                <motion.div
+                  key={feature}
+                  initial={{ x: -20, opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  transition={{ delay: 0.6 + index * 0.1 }}
+                  className="flex items-center gap-3"
+                >
+                  <div className="w-2 h-2 bg-[#10B981] rounded-full animate-pulse" />
+                  <span className="text-gray-300 font-medium">{feature}</span>
+                </motion.div>
+              ))}
+            </div>
+          </motion.div>
+
+          {/* Action Buttons */}
+          <motion.div
+            initial={{ y: 30, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.9 }}
+            className="flex gap-4"
+          >
+            <button
+              onClick={onClose}
+              className="flex-1 px-6 py-3 bg-white/10 hover:bg-white/20 text-white font-bold rounded-2xl transition-all duration-300 border border-white/20"
+            >
+              DISCARD
+            </button>
+            <button
+              onClick={onConfirm}
+              className="flex-1 px-6 py-3 bg-gradient-to-r from-[#8B5CF6] to-[#6366F1] hover:from-[#7C3AED] hover:to-[#5B21B6] text-white font-bold rounded-2xl transition-all duration-300 shadow-[0_10px_30px_rgba(139,92,246,0.4)] flex items-center justify-center gap-2"
+            >
+              <Shield size={16} />
+              CONFIRM
+            </button>
+          </motion.div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
+  );
+};
 
 // --- 1. ENTERPRISE 3D SPATIAL ENGINE ---
 const SpatialCard = ({ children, className, intensity = 12 }) => {
@@ -210,7 +330,7 @@ const ProgressChart = ({ data = [] }) => {
         {/* Subtle Glow Effects */}
         <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-[#FF7222]/5 via-transparent to-[#8884d8]/5 pointer-events-none"></div>
         
-        <ResponsiveContainer width="100%" height="100%">
+        <ResponsiveContainer width="100%" height="100%" minWidth={400} minHeight={300}>
           <AreaChart 
             data={chartData} 
             margin={{ top: 20, right: 30, left: -10, bottom: 10 }}
@@ -339,39 +459,276 @@ const ProgressChart = ({ data = [] }) => {
 
 // --- 3. HIGH-VELOCITY PERFORMANCE MATRIX ---
 const ProgressBars = ({ data = [] }) => {
-  return (
-    <div className="w-full bg-[#080808]/40 border border-white/5 rounded-[2.5rem] md:rounded-[4rem] p-8 md:p-14 backdrop-blur-3xl shadow-3xl">
-      <div className="flex items-center gap-6 mb-16">
-        <h3 className="text-3xl md:text-5xl font-[1000] italic uppercase tracking-tighter">Output <span className="text-[#FF7222]">Flow</span></h3>
-        <div className="h-[2px] flex-1 bg-gradient-to-r from-[#FF7222]/40 to-transparent" />
-      </div>
+  const [selectedEntry, setSelectedEntry] = useState(null);
+  const [showChart, setShowChart] = useState(false);
+  const { progress } = useAppContext();
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-6 md:gap-10">
-        {data.map((item, i) => (
-          <div key={i} className="flex flex-col items-center group cursor-crosshair relative">
-            <div className="w-full relative h-48 md:h-72 bg-white/[0.03] rounded-3xl overflow-hidden border border-white/5 shadow-inner transition-all duration-500 group-hover:shadow-[0_0_30px_rgba(255,114,34,0.3)] group-hover:border-[#FF7222]/30">
-              <motion.div
-                initial={{ height: 0 }}
-                whileInView={{ height: `${item.performance}%` }}
-                transition={{ duration: 1.8, ease: [0.22, 1, 0.36, 1], delay: i * 0.05 }}
-                className="absolute bottom-0 w-full bg-gradient-to-t from-[#FF7222] via-[#ff8c4a] to-white/60"
-              >
-                 <div className="absolute top-0 left-0 w-full h-1 bg-white/40 blur-[2px]" />
-                 <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20" />
-              </motion.div>
-              <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 bg-black/60 backdrop-blur-sm">
-                 <div className="text-center">
-                   <span className="text-2xl font-black italic text-[#FF7222] block">{item.performance}%</span>
-                   <span className="text-sm font-bold text-white uppercase tracking-wide">{item.weight}KG</span>
-                 </div>
+  // Convert progress data to chart format - use backend data if available, otherwise use context
+  const benchPressData = useMemo(() => {
+    const sourceData = data.length > 0 ? data : progress;
+    return sourceData.map((entry, index) => ({
+      id: entry._id || entry.id,
+      date: entry.date || new Date(entry.date || Date.now()).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }),
+      weight: entry.weight || entry.bench || 0,
+      performance: entry.performance || Math.min(100, Math.round(((entry.bench || entry.weight || 0) / 150) * 100)),
+      waist: entry.waist || 0,
+      run: entry.run || 0,
+      bodyWeight: entry.bodyWeight || entry.weight || 0,
+      score: entry.score || 50,
+      bench: entry.bench || entry.weight || 0
+    })).slice(0, 7); // Show only last 7 entries
+  }, [progress, data]);
+
+  // Handle click on bench press entry
+  const handleEntryClick = (entry, index) => {
+    setSelectedEntry({ ...entry, index });
+    setShowChart(true);
+  };
+
+  // Generate chart data for selected entry and surrounding entries
+  const getChartData = () => {
+    if (!selectedEntry || !benchPressData.length) return [];
+    
+    const currentIndex = selectedEntry.index;
+    const range = 3; // Show 3 entries before and after
+    const startIndex = Math.max(0, currentIndex - range);
+    const endIndex = Math.min(benchPressData.length - 1, currentIndex + range);
+    
+    return benchPressData.slice(startIndex, endIndex + 1).map(item => ({
+      date: item.date,
+      bench: item.weight,
+      performance: item.performance,
+      bodyWeight: item.bodyWeight,
+      waist: item.waist,
+      run: item.run
+    }));
+  };
+
+  // Custom Tooltip for Bench Press Chart
+  const BenchTooltip = ({ active, payload, label }) => {
+    if (active && payload && payload.length) {
+      const data = payload[0].payload;
+      return (
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="bg-black/95 border-2 border-[#8884d8]/50 rounded-3xl p-6 shadow-[0_20px_60px_rgba(0,0,0,0.8)] backdrop-blur-2xl min-w-[280px]"
+        >
+          <div className="flex items-center gap-3 mb-4 pb-3 border-b border-[#8884d8]/20">
+            <div className="w-3 h-3 bg-[#8884d8] rounded-full animate-pulse"></div>
+            <p className="text-[#8884d8] font-black uppercase text-lg tracking-wider">Bench Press Analytics</p>
+          </div>
+          
+          <div className="mb-4">
+            <p className="text-gray-300 font-bold uppercase text-sm tracking-wide">Session Date</p>
+            <p className="text-white font-black text-xl">{label}</p>
+          </div>
+          
+          <div className="space-y-3">
+            <div className="flex items-center justify-between p-4 bg-gradient-to-r from-[#8884d8]/10 to-transparent rounded-2xl border border-[#8884d8]/20">
+              <div className="flex items-center gap-3">
+                <div className="w-4 h-4 bg-[#8884d8] rounded-full shadow-[0_0_15px_#8884d8]"></div>
+                <div>
+                  <p className="text-[#8884d8] font-black uppercase text-sm">Max Performance</p>
+                  <p className="text-white font-bold text-2xl">{payload[0].value} KG</p>
+                </div>
               </div>
             </div>
-            <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest mt-6 group-hover:text-[#FF7222] transition-colors">{item.date}</span>
-            <span className="text-sm font-black text-white mt-1 italic group-hover:text-[#FF7222] transition-colors">{item.weight}KG</span>
+            
+            <div className="grid grid-cols-2 gap-2">
+              <div className="flex flex-col items-center p-3 bg-white/5 rounded-xl">
+                <span className="text-gray-400 text-xs uppercase font-bold">Performance</span>
+                <span className="text-white font-black text-lg">{data.performance}%</span>
+              </div>
+              <div className="flex flex-col items-center p-3 bg-white/5 rounded-xl">
+                <span className="text-gray-400 text-xs uppercase font-bold">Body Weight</span>
+                <span className="text-white font-black text-lg">{data.bodyWeight} KG</span>
+              </div>
+            </div>
           </div>
-        ))}
+        </motion.div>
+      );
+    }
+    return null;
+  };
+
+  return (
+    <>
+      <div className="w-full bg-[#080808]/40 border border-white/5 rounded-[2.5rem] md:rounded-[4rem] p-8 md:p-14 backdrop-blur-3xl shadow-3xl">
+        <div className="flex items-center gap-6 mb-16">
+          <h3 className="text-3xl md:text-5xl font-[1000] italic uppercase tracking-tighter">Bench Press <span className="text-[#8884d8]">Analytics</span></h3>
+          <div className="h-[2px] flex-1 bg-gradient-to-r from-[#8884d8]/40 to-transparent" />
+          <div className="text-xs text-gray-400 uppercase font-bold">Click entries for real-time analysis</div>
+        </div>
+
+        {benchPressData.length === 0 ? (
+          <div className="text-center py-20">
+            <div className="text-6xl mb-4 opacity-20">📊</div>
+            <p className="text-gray-500 text-lg font-bold uppercase tracking-wider">No bench press data available</p>
+            <p className="text-gray-600 text-sm mt-2">Add progress entries to see analytics</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-6 md:gap-10">
+            {benchPressData.map((item, i) => (
+              <motion.div 
+                key={item.id} 
+                className="flex flex-col items-center group cursor-pointer relative"
+                onClick={() => handleEntryClick(item, i)}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                <div className="w-full relative h-48 md:h-72 bg-white/[0.03] rounded-3xl overflow-hidden border border-white/5 shadow-inner transition-all duration-500 group-hover:shadow-[0_0_30px_rgba(136,132,216,0.4)] group-hover:border-[#8884d8]/50">
+                  <motion.div
+                    initial={{ height: 0 }}
+                    whileInView={{ height: `${item.performance}%` }}
+                    transition={{ duration: 1.8, ease: [0.22, 1, 0.36, 1], delay: i * 0.05 }}
+                    className="absolute bottom-0 w-full bg-gradient-to-t from-[#8884d8] via-[#a29bdb] to-white/60"
+                  >
+                     <div className="absolute top-0 left-0 w-full h-1 bg-white/40 blur-[2px]" />
+                     <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20" />
+                  </motion.div>
+                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 bg-black/60 backdrop-blur-sm">
+                     <div className="text-center">
+                       <span className="text-2xl font-black italic text-[#8884d8] block">{item.performance}%</span>
+                       <span className="text-sm font-bold text-white uppercase tracking-wide">{item.weight}KG</span>
+                       <div className="mt-2 text-xs text-[#8884d8] font-bold uppercase">Click for Graph</div>
+                     </div>
+                  </div>
+                  
+                  {/* Real-time indicator */}
+                  <div className="absolute top-2 right-2 w-2 h-2 bg-[#8884d8] rounded-full animate-ping opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                </div>
+                <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest mt-6 group-hover:text-[#8884d8] transition-colors">{item.date}</span>
+                <span className="text-sm font-black text-white mt-1 italic group-hover:text-[#8884d8] transition-colors">{item.weight}KG</span>
+              </motion.div>
+            ))}
+          </div>
+        )}
       </div>
-    </div>
+
+      {/* Real-time Chart Modal */}
+      <AnimatePresence>
+        {showChart && selectedEntry && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md"
+            onClick={() => setShowChart(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-[#111] border-2 border-[#8884d8] rounded-[3rem] p-8 w-full max-w-4xl mx-4 relative"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="flex justify-between items-center mb-8">
+                <div>
+                  <h3 className="text-3xl font-[1000] italic uppercase text-white mb-2">
+                    Bench Press <span className="text-[#8884d8]">Analytics</span>
+                  </h3>
+                  <p className="text-sm text-gray-400 uppercase font-bold">
+                    Selected: {selectedEntry.date} - {selectedEntry.weight}KG
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowChart(false)}
+                  className="text-gray-400 hover:text-white text-2xl font-bold transition-colors"
+                >
+                  ×
+                </button>
+              </div>
+
+              {/* Real-time Chart */}
+              <div className="h-96 w-full bg-gradient-to-br from-black/20 via-transparent to-black/10 rounded-3xl border border-white/5 overflow-hidden p-4">
+                <ResponsiveContainer width="100%" height="100%" minWidth={300} minHeight={200}>
+                  <AreaChart data={getChartData()}>
+                    <defs>
+                      <linearGradient id="benchGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#8884d8" stopOpacity={0.6}/>
+                        <stop offset="95%" stopColor="#8884d8" stopOpacity={0}/>
+                      </linearGradient>
+                      <filter id="benchGlow">
+                        <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+                        <feMerge> 
+                          <feMergeNode in="coloredBlur"/>
+                          <feMergeNode in="SourceGraphic"/> 
+                        </feMerge>
+                      </filter>
+                    </defs>
+                    
+                    <CartesianGrid 
+                      strokeDasharray="5 5" 
+                      stroke="#333" 
+                      vertical={false} 
+                    />
+                    
+                    <XAxis 
+                      dataKey="date" 
+                      stroke="#666" 
+                      fontSize={10} 
+                      fontWeight={700} 
+                      axisLine={false} 
+                      tickLine={false}
+                    />
+                    
+                    <YAxis 
+                      stroke="#666" 
+                      fontSize={10} 
+                      fontWeight={700} 
+                      axisLine={false} 
+                      tickLine={false}
+                    />
+                    
+                    <Tooltip content={<BenchTooltip />} />
+                    
+                    <Area 
+                      type="monotone" 
+                      dataKey="bench" 
+                      stroke="#8884d8" 
+                      strokeWidth={4} 
+                      fill="url(#benchGradient)"
+                      filter="url(#benchGlow)"
+                      dot={{ 
+                        fill: '#8884d8', 
+                        strokeWidth: 2, 
+                        stroke: '#000',
+                        r: 6
+                      }}
+                      activeDot={{ 
+                        r: 8, 
+                        fill: '#8884d8',
+                        stroke: '#000',
+                        strokeWidth: 3,
+                        filter: 'url(#benchGlow)'
+                      }}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* Stats Panel */}
+              <div className="mt-6 grid grid-cols-3 gap-4">
+                <div className="bg-[#8884d8]/10 border border-[#8884d8]/20 rounded-2xl p-4 text-center">
+                  <div className="text-2xl font-black text-[#8884d8]">{selectedEntry.weight}KG</div>
+                  <div className="text-xs text-gray-400 uppercase font-bold">Max Weight</div>
+                </div>
+                <div className="bg-white/5 border border-white/10 rounded-2xl p-4 text-center">
+                  <div className="text-2xl font-black text-white">{selectedEntry.performance}%</div>
+                  <div className="text-xs text-gray-400 uppercase font-bold">Performance</div>
+                </div>
+                <div className="bg-[#FF7222]/10 border border-[#FF7222]/20 rounded-2xl p-4 text-center">
+                  <div className="text-2xl font-black text-[#FF7222]">{selectedEntry.date}</div>
+                  <div className="text-xs text-gray-400 uppercase font-bold">Session Date</div>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   );
 };
 
@@ -417,7 +774,7 @@ const MacroBreakdown = ({ nutritionStats }) => {
       <h4 className="text-xl font-[1000] italic uppercase mb-10 tracking-[0.3em] text-gray-400">Biological_Load</h4>
       {/* FIXED HEIGHT CONTAINER FOR PIE CHART */}
       <div className="h-[220px] w-full relative min-h-[220px]">
-        <ResponsiveContainer width="100%" height="100%">
+        <ResponsiveContainer width="100%" height="100%" minWidth={200} minHeight={200}>
           <PieChart>
             <Pie 
                 data={macroData} 
@@ -461,12 +818,253 @@ const MacroBreakdown = ({ nutritionStats }) => {
   );
 };
 
+// --- VITAL TRACE ENTRIES COMPONENT WITH SCROLL EFFECTS ---
+const VitalTraceEntries = ({ dashboard }) => {
+  const [showAllEntries, setShowAllEntries] = useState(false);
+  
+  const uniqueEntries = (dashboard?.recentProgress || [])
+    .filter((item, index, arr) => arr.findIndex(p => p._id === item._id) === index);
+  
+  const displayedEntries = showAllEntries ? uniqueEntries : uniqueEntries.slice(0, 3);
+  
+  return (
+    <div className="space-y-6">
+      {/* Scrollable Entries Container */}
+      <div className={`relative ${
+        showAllEntries 
+          ? 'max-h-[400px] overflow-y-auto scrollbar-thin scrollbar-track-transparent scrollbar-thumb-[#FF7222]/30 hover:scrollbar-thumb-[#FF7222]/50' 
+          : 'max-h-none overflow-hidden'
+      } transition-all duration-500`}>
+        
+        {/* Gradient Fade Effects for Scroll */}
+        {showAllEntries && (
+          <>
+            <div className="absolute top-0 left-0 right-0 h-8 bg-gradient-to-b from-[#080808] to-transparent z-10 pointer-events-none" />
+            <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-[#080808] to-transparent z-10 pointer-events-none" />
+          </>
+        )}
+        
+        {/* Entries List */}
+        <div className="space-y-8 pr-2">
+          <AnimatePresence>
+            {displayedEntries.map((p, i) => (
+              <motion.div 
+                key={p._id || i}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.3, delay: i * 0.05 }}
+                whileHover={{ x: 8, scale: 1.02 }} 
+                className="flex items-center gap-6 group cursor-pointer p-4 rounded-2xl hover:bg-white/[0.02] transition-all duration-300"
+              >
+                <div className="w-14 h-14 bg-white/[0.03] border border-white/10 rounded-2xl flex flex-col items-center justify-center group-hover:bg-[#FF7222] group-hover:text-black transition-all duration-500 flex-shrink-0">
+                  <span className="text-[7px] font-black uppercase">Ref</span>
+                  <span className="text-lg font-[1000] italic">0{i+1}</span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[9px] font-black text-[#FF7222] uppercase tracking-widest mb-1">
+                    {new Date(p.date).toLocaleDateString()}
+                  </p>
+                  <h5 className="text-xl font-[1000] italic uppercase text-white group-hover:translate-x-1 transition-transform truncate">
+                    MASS: {p.weight}KG
+                  </h5>
+                  <p className="text-[9px] font-bold text-gray-500 italic mt-1 uppercase tracking-tighter truncate">
+                    Peak_Performance: {p.benchPress || p.bench}KG
+                  </p>
+                  <div className="flex items-center gap-2 mt-2">
+                    <span className="text-[7px] font-black text-[#FF7222] uppercase tracking-widest">VITALITY</span>
+                    <div className="flex items-center gap-1">
+                      <div className="w-1.5 h-1.5 bg-[#FF7222] rounded-full animate-pulse"></div>
+                      <span className="text-sm font-[1000] italic text-[#FF7222]">{p.score || 50}%</span>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        </div>
+      </div>
+
+      {/* View More Button */}
+      {uniqueEntries.length > 3 && (
+        <div className="flex justify-center pt-4 border-t border-white/5">
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setShowAllEntries(!showAllEntries)}
+            className="flex items-center gap-2 bg-gradient-to-r from-[#FF7222]/20 to-[#FF7222]/10 border border-[#FF7222]/30 hover:border-[#FF7222]/60 px-4 py-2 rounded-xl transition-all group text-xs"
+          >
+            <span className="text-white font-black uppercase tracking-wider">
+              {showAllEntries ? 'Show Less' : `View More (${uniqueEntries.length - 3})`}
+            </span>
+            <motion.div
+              animate={{ rotate: showAllEntries ? 180 : 0 }}
+              transition={{ duration: 0.3 }}
+              className="text-[#FF7222] group-hover:text-white transition-colors"
+            >
+              {showAllEntries ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            </motion.div>
+          </motion.button>
+        </div>
+      )}
+    </div>
+  );
+};
+const PricingLock = ({ tier, feature, children }) => {
+  const { user } = useAppContext();
+  const userTier = user?.pricing || 'starter';
+  
+  const tiers = { starter: 0, pro: 1, elite: 2 };
+  const hasAccess = tiers[userTier] >= tiers[tier];
+  
+  const tierColors = { starter: '#10B981', pro: '#F59E0B', elite: '#8B5CF6' };
+  const tierIcons = { starter: Zap, pro: Crown, elite: Star };
+  const TierIcon = tierIcons[tier];
+  
+  if (hasAccess) return children;
+  
+  return (
+    <div className="relative group">
+      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm rounded-[2.5rem] z-10 flex items-center justify-center">
+        <div className="text-center p-6">
+          <div className="flex items-center justify-center mb-4">
+            <div className="p-3 rounded-full border-2 mr-3" style={{ borderColor: tierColors[tier] }}>
+              <Lock size={20} style={{ color: tierColors[tier] }} />
+            </div>
+            <TierIcon size={24} style={{ color: tierColors[tier] }} />
+          </div>
+          <h3 className="text-lg font-bold text-white mb-2 capitalize">{tier} Feature</h3>
+          <p className="text-sm text-gray-300 mb-4">{feature}</p>
+          <button 
+            onClick={() => window.location.href = '/pricing'}
+            className="px-6 py-2 rounded-lg font-semibold text-black transition-all"
+            style={{ backgroundColor: tierColors[tier] }}
+          >
+            Upgrade to {tier}
+          </button>
+        </div>
+      </div>
+      <div className="opacity-20 pointer-events-none">{children}</div>
+    </div>
+  );
+};
+
 // --- MAIN ELITE CONSOLE ---
 const EliteDashboard = () => {
-  const { dashboard, fetchDashboard, nutritionStats, loading, error } = useAppContext();
+  const { dashboard, fetchDashboard, nutritionStats, loading, error, user } = useAppContext();
+  const { userId } = useAuth();
+  const location = useLocation();
+  const [showSuccessNotification, setShowSuccessNotification] = useState(false);
+  const [showEliteModal, setShowEliteModal] = useState(false);
+
+  // Get pricing from user context, not navigation state
+  const pricing = user?.pricing || 'starter';
+  console.log('🎯 Dashboard Pricing:', pricing);
 
   useEffect(() => {
     fetchDashboard?.();
+  }, [fetchDashboard]);
+
+  // Elite Access Modal Logic - Show only once when navigating to dashboard
+  useEffect(() => {
+    if (userId && user && user.pricing === 'elite' && location.pathname.startsWith('/dashboard')) {
+      const modalKey = `eliteModalShown_${userId}`;
+      const hasShownModal = sessionStorage.getItem(modalKey);
+      
+      // Show modal immediately if not shown before
+      if (!hasShownModal) {
+        setShowEliteModal(true);
+      }
+    }
+  }, [userId, user, location.pathname]);
+
+  const handleCloseEliteModal = () => {
+    const modalKey = `eliteModalShown_${userId}`;
+    sessionStorage.setItem(modalKey, 'true');
+    setShowEliteModal(false);
+  };
+
+  const handleConfirmEliteModal = () => {
+    const modalKey = `eliteModalShown_${userId}`;
+    sessionStorage.setItem(modalKey, 'true');
+    setShowEliteModal(false);
+  };
+
+  // Test function to update pricing
+  const testUpdatePricing = async (newPricing) => {
+    try {
+      console.log(`🧪 Testing pricing update to: ${newPricing}`);
+      console.log(`👤 Current user ID: ${userId}`);
+      
+      const response = await fetch('http://localhost:3000/api/users/me/pricing', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${await window.Clerk.session.getToken()}`
+        },
+        body: JSON.stringify({ pricing: newPricing })
+      });
+      
+      const data = await response.json();
+      console.log(`📊 Update response:`, data);
+      
+      if (data.success) {
+        console.log('✅ Pricing updated successfully:', data.user.pricing);
+        // Refresh user data immediately
+        setTimeout(() => {
+          fetchDashboard?.();
+          window.location.reload(); // Force reload to see changes
+        }, 500);
+      } else {
+        console.error('❌ Failed to update pricing:', data.message);
+      }
+    } catch (error) {
+      console.error('💥 Error updating pricing:', error);
+    }
+  };
+
+  // Check for success parameter in URL and refresh user data
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const isSuccess = urlParams.get('success') === 'true';
+    const planName = urlParams.get('plan');
+    
+    if (isSuccess) {
+      console.log('🎯 Payment Success Detected!');
+      console.log('💳 Plan purchased:', planName);
+      
+      setShowSuccessNotification(true);
+      // Clean up URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+      // Auto hide after 5 seconds
+      setTimeout(() => setShowSuccessNotification(false), 5000);
+      
+      // Refresh user data after payment success
+      const refreshUserData = async () => {
+        try {
+          console.log('🔄 Refreshing user data after payment...');
+          const response = await fetch('http://localhost:3000/api/users/me', {
+            headers: {
+              'Authorization': `Bearer ${await window.Clerk.session.getToken()}`
+            }
+          });
+          const userData = await response.json();
+          if (userData.success) {
+            console.log('✅ User data refreshed successfully');
+            console.log('🎯 Updated User Pricing from Database:', userData.user.pricing);
+            // Force re-fetch dashboard data with updated user info
+            fetchDashboard?.();
+          } else {
+            console.error('❌ Failed to refresh user data:', userData.message);
+          }
+        } catch (error) {
+          console.error('💥 Error refreshing user data:', error);
+        }
+      };
+      
+      // Delay to ensure webhook has processed
+      setTimeout(refreshUserData, 2000);
+    }
   }, [fetchDashboard]);
 
   if (loading) return (
@@ -494,6 +1092,46 @@ const EliteDashboard = () => {
   return (
     <div className="min-h-screen bg-[#020202] text-white p-4 sm:p-10 lg:p-20 relative overflow-hidden font-['Outfit'] selection:bg-[#FF7222] selection:text-black">
       
+      {/* Elite Access Modal - Show first before dashboard content */}
+      {showEliteModal && (
+        <EliteAccessModal 
+          isOpen={showEliteModal} 
+          onClose={handleCloseEliteModal}
+          onConfirm={handleConfirmEliteModal}
+          userPricing={user?.pricing}
+        />
+      )}
+      
+      {/* Dashboard content - Only show when modal is closed */}
+      {!showEliteModal && (
+        <>
+          {/* Success Notification */}
+          {showSuccessNotification && (
+            <motion.div
+              initial={{ opacity: 0, y: -100, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -100, scale: 0.9 }}
+              className="fixed top-8 right-8 z-[200] bg-gradient-to-r from-green-500 to-green-600 text-white p-6 rounded-2xl shadow-2xl border border-green-400/30 backdrop-blur-xl"
+            >
+              <div className="flex items-center gap-4">
+                <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <div>
+                  <h4 className="font-bold text-lg">Payment Successful!</h4>
+                  <p className="text-sm opacity-90">Your subscription is now active</p>
+                </div>
+                <button 
+                  onClick={() => setShowSuccessNotification(false)}
+                  className="ml-4 text-white/70 hover:text-white transition-colors"
+                >
+                  ×
+                </button>
+              </div>
+            </motion.div>
+          )}
       {/* GLOBAL ATMOSPHERE */}
       <div className="fixed inset-0 pointer-events-none z-0">
         <div className="absolute top-[-20%] right-[-10%] w-[100vw] h-[100vw] bg-[#FF7222]/5 blur-[200px] rounded-full" />
@@ -536,18 +1174,23 @@ const EliteDashboard = () => {
           </SpatialCard>
         </header>
 
-        {/* METRIC FLOW */}
-        <ProgressBars data={dashboard?.progressBarData || []} />
+        {/* METRIC FLOW - PRO FEATURE */}
+        <PricingLock tier="pro" feature="Advanced Progress Analytics">
+          <ProgressBars data={dashboard?.progressBarData || []} />
+        </PricingLock>
 
         {/* CORE GRID */}
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-10 md:gap-20">
           
           {/* PRIMARY COLUMN */}
           <div className="xl:col-span-8 space-y-10 md:space-y-20">
-            <ProgressChart data={dashboard?.progressChartData || []} />
+            <PricingLock tier="pro" feature="Bio Analytics Chart">
+              <ProgressChart data={dashboard?.progressChartData || []} />
+            </PricingLock>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-10 md:gap-20">
-              <SpatialCard className="bg-gradient-to-br from-[#FF7222] via-[#e6651d] to-[#b34a10] p-12 rounded-[4rem] text-black relative overflow-hidden group shadow-3xl">
+              <PricingLock tier="starter" feature="Basic Nutrition Tracking">
+                <SpatialCard className="bg-gradient-to-br from-[#FF7222] via-[#e6651d] to-[#b34a10] p-12 rounded-[4rem] text-black relative overflow-hidden group shadow-3xl">
                 <div className="relative z-10">
                   <div className="flex justify-between items-start mb-12">
                     <h4 className="text-5xl font-[1000] italic uppercase leading-[0.8] tracking-tighter">BIO<br />FUEL</h4>
@@ -563,9 +1206,11 @@ const EliteDashboard = () => {
                   </div>
                 </div>
                 <div className="absolute -right-20 -bottom-20 text-[25rem] font-black italic opacity-[0.07] pointer-events-none select-none">FUEL</div>
-              </SpatialCard>
+                </SpatialCard>
+              </PricingLock>
 
-              <SpatialCard className="bg-[#0A0A0A] border border-white/5 p-12 rounded-[4rem] flex flex-col justify-between backdrop-blur-3xl shadow-3xl relative overflow-hidden">
+              <PricingLock tier="starter" feature="Workout History">
+                <SpatialCard className="bg-[#0A0A0A] border border-white/5 p-12 rounded-[4rem] flex flex-col justify-between backdrop-blur-3xl shadow-3xl relative overflow-hidden">
                 <div className="absolute top-0 right-0 p-8 opacity-20"><div className="w-20 h-20 border border-white/40 rounded-full flex items-center justify-center italic font-black text-xs">LOG</div></div>
                 <div>
                   <h4 className="text-[11px] font-black text-gray-600 uppercase tracking-[0.6em] mb-12 italic">Tactical_Operations</h4>
@@ -592,39 +1237,62 @@ const EliteDashboard = () => {
                     <motion.div initial={{ width: 0 }} whileInView={{ width: `${dashboard?.stats?.workoutCompletionRate || 0}%` }} transition={{ duration: 1.5 }} className="h-full bg-white" />
                   </div>
                 </div>
-              </SpatialCard>
+                </SpatialCard>
+              </PricingLock>
             </div>
           </div>
 
           {/* SECONDARY COLUMN */}
           <div className="xl:col-span-4 space-y-10 md:space-y-20">
-            <SpatialCard className="bg-[#080808] border border-white/5 p-12 rounded-[4rem] relative overflow-hidden shadow-3xl">
-              <div className="flex justify-between items-center mb-14">
-                <h4 className="text-2xl font-[1000] italic uppercase tracking-tighter">VITAL_TRACE</h4>
-                <div className="flex gap-1">
-                    {[1,2,3].map(i => <div key={i} className="w-1 h-4 bg-[#FF7222]/40 rounded-full animate-pulse" />)}
-                </div>
-              </div>
-              <div className="space-y-10">
-                {(dashboard?.recentProgress || []).map((p, i) => (
-                  <motion.div whileHover={{ x: 12 }} key={i} className="flex items-center gap-8 group cursor-pointer">
-                    <div className="w-16 h-16 bg-white/[0.03] border border-white/10 rounded-3xl flex flex-col items-center justify-center group-hover:bg-[#FF7222] group-hover:text-black transition-all duration-500">
-                      <span className="text-[8px] font-black uppercase">Ref</span>
-                      <span className="text-xl font-[1000] italic">0{i+1}</span>
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-black text-[#FF7222] uppercase tracking-widest mb-1">{new Date(p.date).toLocaleDateString()}</p>
-                      <h5 className="text-2xl font-[1000] italic uppercase text-white group-hover:translate-x-2 transition-transform">MASS: {p.weight}KG</h5>
-                      <p className="text-[10px] font-bold text-gray-500 italic mt-2 uppercase tracking-tighter">Peak_Performance: {p.benchPress}KG</p>
-                    </div>
+            <PricingLock tier="pro" feature="Vitality Analytics">
+              <SpatialCard className="bg-gradient-to-br from-[#FF7222]/10 via-[#FF7222]/5 to-transparent border border-[#FF7222]/20 p-12 rounded-[4rem] text-center relative overflow-hidden group shadow-3xl">
+                <div className="absolute inset-0 bg-gradient-to-br from-[#FF7222]/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
+                <div className="relative z-10">
+                  <motion.div animate={{ scale: [1, 1.05, 1] }} transition={{ duration: 2, repeat: Infinity }} className="w-32 h-32 mx-auto mb-8 bg-[#FF7222] rounded-full flex flex-col items-center justify-center shadow-[0_0_60px_rgba(255,114,34,0.4)]">
+                    <span className="text-4xl font-[1000] italic text-black leading-none">
+                      {dashboard?.recentProgress?.[0]?.score || 50}
+                    </span>
+                    <span className="text-[8px] font-black text-black/70 uppercase tracking-wider">SCORE</span>
                   </motion.div>
-                ))}
-              </div>
-            </SpatialCard>
+                  <h4 className="text-3xl font-[1000] italic uppercase mb-4 tracking-tighter">VITALITY<br />INDEX</h4>
+                  <p className="text-[12px] font-bold text-gray-600 uppercase tracking-widest leading-relaxed">
+                    Professional health assessment based on body composition, strength metrics, and cardiovascular performance.
+                  </p>
+                  <div className="mt-6 flex justify-center">
+                    <div className="px-4 py-2 bg-black/20 rounded-full border border-[#FF7222]/30">
+                      <span className="text-[10px] font-black text-[#FF7222] uppercase tracking-wider">Real-Time Sync</span>
+                    </div>
+                  </div>
+                </div>
+              </SpatialCard>
+            </PricingLock>
+            <PricingLock tier="elite" feature="Vital Trace Monitoring">
+              <SpatialCard className="bg-[#080808] border border-white/5 p-12 rounded-[4rem] relative overflow-hidden shadow-3xl">
+                <div className="flex justify-between items-center mb-14">
+                  <div>
+                    <h4 className="text-2xl font-[1000] italic uppercase tracking-tighter">VITAL_TRACE</h4>
+                    <p className="text-[10px] font-bold text-gray-500 uppercase mt-2 tracking-widest">Click entries for real-time analysis</p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="text-xs text-gray-400 uppercase font-bold">
+                      {(dashboard?.recentProgress || []).filter((item, index, arr) => arr.findIndex(p => p._id === item._id) === index).length} Entries
+                    </div>
+                    <div className="flex gap-1">
+                      {[1,2,3].map(i => <div key={i} className="w-1 h-4 bg-[#FF7222]/40 rounded-full animate-pulse" />)}
+                    </div>
+                  </div>
+                </div>
+                
+                <VitalTraceEntries dashboard={dashboard} />
+              </SpatialCard>
+            </PricingLock>
 
-            <MacroBreakdown nutritionStats={nutritionStats} />
+            <PricingLock tier="pro" feature="Macro Breakdown Analysis">
+              <MacroBreakdown nutritionStats={nutritionStats} />
+            </PricingLock>
 
-            <SpatialCard className="bg-white/5 border border-white/10 p-12 rounded-[4rem] text-center group backdrop-blur-xl relative overflow-hidden shadow-2xl">
+            <PricingLock tier="elite" feature="Neural Stability Diagnostics">
+              <SpatialCard className="bg-white/5 border border-white/10 p-12 rounded-[4rem] text-center group backdrop-blur-xl relative overflow-hidden shadow-2xl">
                 <motion.div animate={{ rotateY: 360 }} transition={{ duration: 8, repeat: Infinity, ease: "linear" }} className="text-8xl mb-10 drop-shadow-[0_0_30px_rgba(255,114,34,0.4)]">🛡️</motion.div>
                 <h4 className="text-3xl font-[1000] italic uppercase mb-4 tracking-tighter">NEURAL_STABILITY</h4>
                 <p className="text-[12px] font-bold text-gray-500 uppercase tracking-widest leading-loose">
@@ -634,7 +1302,8 @@ const EliteDashboard = () => {
                 <button className="w-full mt-12 py-6 bg-white text-black rounded-[2rem] text-[11px] font-[1000] uppercase tracking-[0.6em] hover:bg-[#FF7222] hover:text-white hover:scale-[1.02] transition-all duration-500 shadow-3xl">
                   ACCESS_DIAGNOSTICS
                 </button>
-            </SpatialCard>
+              </SpatialCard>
+            </PricingLock>
           </div>
         </div>
       </div>
@@ -646,10 +1315,16 @@ const EliteDashboard = () => {
         ::selection { background: #FF7222; color: #000; }
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-thumb { background: #FF7222; border-radius: 10px; }
+        .scrollbar-thin::-webkit-scrollbar { width: 6px; }
+        .scrollbar-track-transparent::-webkit-scrollbar-track { background: transparent; }
+        .scrollbar-thumb-\[\#FF7222\]\/30::-webkit-scrollbar-thumb { background: rgba(255, 114, 34, 0.3); border-radius: 10px; }
+        .scrollbar-thumb-\[\#FF7222\]\/50:hover::-webkit-scrollbar-thumb { background: rgba(255, 114, 34, 0.5); }
         @media (max-width: 768px) {
             .stroke-text-white { -webkit-text-stroke: 1px rgba(255,255,255,0.08); }
         }
       `}</style>
+        </>
+      )}
     </div>
   );
 };
