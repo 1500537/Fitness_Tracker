@@ -2,9 +2,15 @@ import React from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import Sidebar from './Sidebar';
+import { useAppContext } from '../../context/useAppContext';
+import CustomPopUp from '../adminDashboard/CustomPopUp';
 
 const DashboardLayout = () => {
   const location = useLocation();
+  const { user, isSubscriptionActive } = useAppContext();
+  
+  const isActive = isSubscriptionActive();
+  const isExpired = user && user.pricing !== 'starter' && !isActive;
 
   return (
     <div className="flex min-h-screen bg-[#020202] text-white selection:bg-[#FF7222] selection:text-black overflow-hidden font-['Outfit']">
@@ -56,17 +62,35 @@ const DashboardLayout = () => {
 
         {/* --- DYNAMIC TRANSITION VIEWPORT --- */}
         <div className="p-6 md:p-12 flex-1">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={location.pathname}
-              initial={{ opacity: 0, y: 50, scale: 0.98, filter: 'blur(10px)' }}
-              animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' }}
-              exit={{ opacity: 0, y: -50, scale: 1.02, filter: 'blur(10px)' }}
-              transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
-            >
-              <Outlet />
-            </motion.div>
-          </AnimatePresence>
+          {isExpired ? (
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center max-w-md">
+                <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-red-500/20 flex items-center justify-center">
+                  <span className="text-red-400 text-4xl">🔒</span>
+                </div>
+                <h2 className="text-2xl font-bold text-white mb-4">Features Locked</h2>
+                <p className="text-gray-400 mb-6">Your subscription has expired. Upgrade now to regain access to all premium features.</p>
+                <button 
+                  onClick={() => window.location.href = '/pricing'}
+                  className="px-6 py-3 bg-[#FF7222] text-black rounded-lg font-semibold hover:bg-[#FF7222]/80 transition-colors"
+                >
+                  Upgrade Now
+                </button>
+              </div>
+            </div>
+          ) : (
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={location.pathname}
+                initial={{ opacity: 0, y: 50, scale: 0.98, filter: 'blur(10px)' }}
+                animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' }}
+                exit={{ opacity: 0, y: -50, scale: 1.02, filter: 'blur(10px)' }}
+                transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+              >
+                <Outlet />
+              </motion.div>
+            </AnimatePresence>
+          )}
         </div>
 
         <footer className="px-12 py-8 opacity-30 border-t border-white/5 flex justify-between text-[9px] font-black uppercase tracking-[0.5em]">

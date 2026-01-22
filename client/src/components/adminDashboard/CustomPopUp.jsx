@@ -10,8 +10,7 @@ const CustomPopUp = ({ isOpen, onClose, onConfirm, title, type, pricing, childre
     delete: { icon: <Trash2 className="text-red-400" size={28} />, glow: "rgba(239, 68, 68, 0.5)", btn: "bg-red-600", title: "PURGE PROTOCOL" },
     success: { icon: <CheckCircle2 className="text-green-400" size={28} />, glow: "rgba(34, 197, 94, 0.5)", btn: "bg-green-600", title: "OPERATION SUCCESSFUL" },
     confirm: { icon: <AlertCircle className="text-yellow-400" size={28} />, glow: "rgba(234, 179, 8, 0.5)", btn: "bg-yellow-600", title: "CONFIRM ACTION" },
-    ban: { icon: <AlertOctagon className="text-yellow-400" size={28} />, glow: "rgba(234, 179, 8, 0.5)", btn: "bg-yellow-600", title: "BAN USER" }
-    ,
+    expired: { icon: <AlertOctagon className="text-red-400" size={28} />, glow: "rgba(239, 68, 68, 0.5)", btn: "bg-[#FF7222]", title: "PLAN EXPIRED" },
     premium: { icon: <ShieldCheck className="text-indigo-400" size={28} />, glow: "rgba(99, 102, 241, 0.18)", btn: "bg-indigo-600", title: "ACCESS GRANTED" }
   };
 
@@ -80,6 +79,17 @@ const CustomPopUp = ({ isOpen, onClose, onConfirm, title, type, pricing, childre
                       <div className="w-40 h-40 rounded-3xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center shadow-2xl transform-gpu hover:scale-105 transition-transform">
                         <ShieldCheck size={48} className="text-white" />
                       </div>
+                    </div>
+                  </div>
+                ) : type === 'expired' ? (
+                  <div className="text-center">
+                    <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-red-500/20 flex items-center justify-center">
+                      <AlertOctagon className="text-red-400" size={40} />
+                    </div>
+                    <h3 className="text-xl font-bold text-white mb-3">Your Plan Has Expired</h3>
+                    <p className="text-gray-300 mb-6">Your subscription has expired and features are now locked. Upgrade now to regain access to all premium features.</p>
+                    <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4 mb-4">
+                      <p className="text-red-400 text-sm font-semibold">⚠️ All premium features are currently disabled</p>
                     </div>
                   </div>
                 ) : (

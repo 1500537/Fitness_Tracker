@@ -28,28 +28,28 @@ export const aboutData = [
   {
     id: "01",
     title: "Limitless\nTraining",
-    desc: "Humne tracking ko ek naye level par pohanchaya hai. Ab har rep aur har saans ka data aapke hath mein hai.",
+    desc: "We've taken tracking to a whole new level. Now every rep and every breath's data is in your hands.",
     image: assets.img1,
     accent: "Bio-Sync Tech"
   },
   {
     id: "02",
     title: "Mental\nRecovery",
-    desc: "Performance sirf body se nahi hoti. Humara AI aapke stress levels ko track kar ke recovery suggest karta hai.",
+    desc: "Performance isn't just about the body. Our AI tracks your stress levels and suggests recovery protocols.",
     image: assets.img2,
     accent: "AI Mind Analysis"
   },
   {
     id: "03",
     title: "Urban\nSpeed",
-    desc: "City mein cycling ho ya running, humari watch precision GPS ke sath har gali ka track rakhti hai.",
+    desc: "Whether cycling or running in the city, our watch tracks every street with precision GPS technology.",
     image: assets.img3,
     accent: "Precision GPS 2.0"
   },
   {
     id: "04",
     title: "Elite\nEndurance",
-    desc: "Extreme conditions ke liye bani ye watch aapka sath kabhi nahi chorti, chahe pahar ho ya samundar.",
+    desc: "Built for extreme conditions, this watch never leaves your side, whether on mountains or by the sea.",
     image: assets.img4,
     accent: "Ultra Durability"
   }

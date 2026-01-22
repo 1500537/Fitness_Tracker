@@ -20,7 +20,7 @@ const TestimonialPricing = () => {
   useEffect(() => {
     setIsVisible(true);
     if (!hasFetched.current && fetchPlans) {
-      fetchPlans().catch(console.error);
+      fetchPlans().catch(() => {});
       hasFetched.current = true;
     }
   }, [fetchPlans]);
@@ -31,19 +31,17 @@ const TestimonialPricing = () => {
       return;
     }
 
-    if (plan.name.toLowerCase() === userTier) {
-      return; // Already subscribed
+    const isExpiredUser = user?.subscription?.isActive === false || user?.subscription?.status === 'expired';
+    
+    // Allow subscription if:
+    // 1. User doesn't have this plan currently
+    // 2. OR user has this plan but it's expired (for reactivation)
+    if (plan.name.toLowerCase() === userTier && !isExpiredUser) {
+      return; // Already subscribed and active
     }
 
-    console.log('💳 Subscribing to plan:', plan.name);
-    console.log('💰 Plan details:', { 
-      name: plan.name, 
-      price: billingCycle === 'monthly' ? plan.monthlyPrice : plan.annualPrice,
-      billingCycle 
-    });
-
     try {
-      const response = await fetch('http://localhost:3000/api/stripe/create-checkout-session', {
+      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/stripe/create-checkout-session`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -61,19 +59,14 @@ const TestimonialPricing = () => {
       
       if (data.success) {
         if (data.url) {
-          console.log('🚀 Redirecting to Stripe checkout for plan:', plan.name);
           window.location.href = data.url;
         } else if (data.shouldRefresh) {
-          // Free plan - refresh user data
-          console.log('🆓 Free plan selected, refreshing page');
           window.location.reload();
         }
       } else {
-        console.error('❌ Payment setup failed:', data.message);
         alert('Payment setup failed. Please try again.');
       }
     } catch (error) {
-      console.error('💥 Payment error:', error);
       alert('Payment failed. Please try again.');
     }
   };
@@ -214,19 +207,24 @@ const TestimonialPricing = () => {
               ) : plans && plans.length > 0 ? (
                 plans.map((plan, idx) => {
                   const currentPrice = billingCycle === 'monthly' ? plan.monthlyPrice : plan.annualPrice;
-                  const savings = billingCycle === 'annual' && plan.monthlyPrice > 0 
-                    ? (plan.monthlyPrice - plan.annualPrice) * 12 
+                  const monthlyPrice = plan.monthlyPrice;
+                  const annualPrice = plan.annualPrice;
+                  const savings = billingCycle === 'annual' && monthlyPrice > 0 
+                    ? Math.round((monthlyPrice * 12 - annualPrice * 12) * 100) / 100
                     : 0;
+                  
+                  const isExpiredUser = user?.subscription?.isActive === false || user?.subscription?.status === 'expired';
                   
                   return (
                     <div 
                       key={plan._id}
                       className={`group relative flex flex-col sm:flex-row items-center justify-between p-4 md:p-8 lg:p-12 rounded-[20px] md:rounded-[30px] lg:rounded-[50px] transition-all duration-500 cursor-pointer overflow-hidden border
-                        ${plan.name.toLowerCase() === userTier 
+                        ${plan.name.toLowerCase() === userTier && !isExpiredUser
                           ? 'bg-gradient-to-r from-green-500 to-green-600 text-white border-green-400 scale-[1.02]' 
                           : plan.popular 
                           ? 'bg-white text-black border-white shadow-xl scale-[1] lg:scale-[1.03]' 
-                          : 'bg-[#111] text-white border-white/5 hover:border-[#FF7222]'}`}
+                          : 'bg-[#111] text-white border-white/5 hover:border-[#FF7222]'}
+                        ${isExpiredUser ? 'animate-pulse hover:animate-none hover:shadow-[0_0_30px_#FF7222] hover:scale-105' : ''}`}
                     >
                       <div className="absolute inset-0 bg-[#FF7222] translate-y-[101%] group-hover:translate-y-0 transition-transform duration-700 ease-in-out" />
 
@@ -243,7 +241,7 @@ const TestimonialPricing = () => {
                             )}
                             {savings > 0 && (
                               <span className="text-[6px] md:text-[8px] lg:text-[10px] font-black text-[#FF7222] mt-1 uppercase tracking-widest bg-[#FF7222]/10 px-2 py-1 rounded group-hover:text-white group-hover:bg-white/20">
-                                Save ${savings} Yearly
+                                Save ${savings}/year
                               </span>
                             )}
                           </div>
@@ -263,13 +261,16 @@ const TestimonialPricing = () => {
                         <button
                           onClick={() => handleSubscribe(plan)}
                           className={`relative z-10 mt-4 sm:mt-0 w-full sm:w-auto px-6 md:px-8 py-3 md:py-4 rounded-full font-black uppercase text-[10px] md:text-xs tracking-widest transition-all duration-300 cursor-pointer
-                            ${plan.name.toLowerCase() === userTier 
+                            ${plan.name.toLowerCase() === userTier && isExpiredUser
+                              ? 'bg-[#FF7222] text-black hover:bg-[#e6651f]' 
+                              : plan.name.toLowerCase() === userTier && !isExpiredUser
                               ? 'bg-white text-green-600 border border-white cursor-not-allowed' 
                               : plan.popular 
                               ? 'bg-black text-white hover:bg-gray-800 border border-black group-hover:bg-white group-hover:text-black group-hover:border-white' 
                               : 'bg-[#FF7222] text-black hover:bg-[#e6651f] group-hover:bg-white group-hover:text-black'}`}
                         >
-                          {plan.name.toLowerCase() === userTier ? 'Current Plan' : 'Subscribe'}
+                          {plan.name.toLowerCase() === userTier && isExpiredUser ? 'Reactivate' : 
+                           plan.name.toLowerCase() === userTier && !isExpiredUser ? 'Current Plan' : 'Subscribe'}
                         </button>
                       </div>
 
@@ -305,7 +306,7 @@ const TestimonialPricing = () => {
       <div className="mt-20 md:mt-40 bg-[#FF7222] py-8 md:py-14 rotate-[-2deg] scale-110 shadow-2xl relative z-50 overflow-hidden border-y-[2px] md:border-y-[4px] border-black">
         <div className="flex animate-marquee-slow whitespace-nowrap">
            {[...Array(10)].map((_, i) => (
-             <div key={i} className="flex items-center mx-10 md:mx-20">
+             <div key={`marquee-${i}`} className="flex items-center mx-10 md:mx-20">
                 <span className="text-black text-4xl md:text-8xl font-[1000] italic uppercase tracking-tighter">UNSTOPPABLE</span>
                 <span className="mx-10 md:mx-20 text-white text-3xl md:text-7xl font-light opacity-50">/</span>
                 <span className="text-black text-4xl md:text-8xl font-[1000] italic uppercase tracking-tighter">SUBSCRIBE NOW</span>

@@ -21,7 +21,7 @@ const Navbar = () => {
     if (!user) return;
     
     try {
-      const response = await fetch('http://localhost:3000/api/users/me/timer', {
+      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/users/me/timer`, {
         headers: {
           'Authorization': `Bearer ${await window.Clerk.session.getToken()}`
         }
@@ -30,10 +30,9 @@ const Navbar = () => {
       
       if (data.success) {
         setTimerData(data.timer);
-        console.log('🕰️ Timer data fetched:', data.timer);
       }
     } catch (error) {
-      console.error('❌ Error fetching timer:', error);
+      // Error fetching timer
     }
   };
   
@@ -53,7 +52,6 @@ const Navbar = () => {
     if (isLoaded && user) {
       const needsFetch = !appUser || (appUser?.clerkId && appUser.clerkId !== user.id);
       if (needsFetch) {
-        console.log('Navbar - Fetching user data for:', user.id);
         fetchUser();
       }
     }
@@ -62,7 +60,6 @@ const Navbar = () => {
   // Force re-render when appUser changes
   useEffect(() => {
     if (appUser) {
-      console.log('Navbar - App user updated, role:', appUser.role);
       // Force component re-render by updating state
       setHoveredItem(null);
     }
@@ -72,15 +69,12 @@ const Navbar = () => {
   const publicItems = ['Home', 'About', 'Pricing', 'Contact'];
   const getDashboardItem = () => {
     if (!user || !appUser) return null;
-    console.log('Navbar - User role:', appUser.role, 'Full user data:', appUser);
 
     const role = (appUser.role || '').toString().toLowerCase();
     if (role === 'user') {
-      console.log('Showing Tracker for user role');
       return 'Tracker';
     }
     if (role === 'admin' || role === 'owner') {
-      console.log('Showing Admin for admin/owner role');
       return 'Admin';
     }
 
@@ -303,10 +297,10 @@ const Navbar = () => {
 
       {/* MOBILE NAV (Synced with Auth) */}
       <div className="lg:hidden fixed bottom-6 left-1/2 -translate-x-1/2 w-[90%] bg-black/80 backdrop-blur-3xl border border-white/10 h-16 rounded-[2rem] flex items-center justify-around px-6 z-[200] shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
-        {currentNavItems.map((item) => (
+        {currentNavItems.map((item, index) => (
            (item === 'Tracker' || item === 'Admin') ? 
-           <RouterLink key={item} to={item === 'Admin' ? '/admin' : '/dashboard'} className="text-[10px] font-black uppercase text-white/40 hover:text-[#FF7222] italic tracking-widest transition-colors">{item}</RouterLink> :
-           <ScrollLink key={item} to={item.toLowerCase()} smooth={true} className="text-[10px] font-black uppercase text-white/40 hover:text-[#FF7222] italic tracking-widest transition-colors cursor-pointer">{item}</ScrollLink>
+           <RouterLink key={`${item}-${index}`} to={item === 'Admin' ? '/admin' : '/dashboard'} className="text-[10px] font-black uppercase text-white/40 hover:text-[#FF7222] italic tracking-widest transition-colors">{item}</RouterLink> :
+           <ScrollLink key={`${item}-${index}`} to={item.toLowerCase()} smooth={true} className="text-[10px] font-black uppercase text-white/40 hover:text-[#FF7222] italic tracking-widest transition-colors cursor-pointer">{item}</ScrollLink>
         ))}
       </div>
 

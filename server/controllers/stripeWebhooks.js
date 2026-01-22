@@ -1,5 +1,6 @@
 import stripe from "stripe";
 import User from "../models/userModal.js";
+import Subscription from "../models/pricingModal.js";
 
 // API to create Stripe checkout session
 export const createCheckoutSession = async (req, res) => {
@@ -15,9 +16,23 @@ export const createCheckoutSession = async (req, res) => {
 
         if (price === 0) {
             // Free plan - update directly
+            const now = new Date();
+            const expiresAt = new Date(now);
+            expiresAt.setDate(now.getDate() + 30); // 30 days for free plan
+            
             const updatedUser = await User.findByIdAndUpdate(
                 userId, 
-                { pricing: planName.toLowerCase() }, // Convert to lowercase
+                { 
+                    pricing: planName.toLowerCase(),
+                    $set: {
+                        'subscription.planName': planName.toLowerCase(),
+                        'subscription.billingCycle': billingCycle,
+                        'subscription.price': 0,
+                        'subscription.startDate': now,
+                        'subscription.expiresAt': expiresAt,
+                        'subscription.isActive': true
+                    }
+                },
                 { new: true }
             );
             console.log(`✅ Free plan updated: User ${userId} pricing set to ${updatedUser?.pricing}`);
@@ -43,7 +58,8 @@ export const createCheckoutSession = async (req, res) => {
             metadata: {
                 userId: userId.toString(),
                 planName: planName.toString(),
-                billingCycle: billingCycle.toString()
+                billingCycle: billingCycle.toString(),
+                price: price.toString()
             }
         });
         
@@ -92,7 +108,7 @@ export const stripeWebhooks = async (request, response) => {
 
             if (sessions.data.length > 0) {
                 const sessionData = sessions.data[0];
-                const { userId, planName } = sessionData.metadata;
+                const { userId, planName, billingCycle, price } = sessionData.metadata;
                 
                 console.log(`💳 Processing payment for user ${userId}, plan: ${planName}`);
                 console.log('📋 Session metadata:', sessionData.metadata);
@@ -100,7 +116,7 @@ export const stripeWebhooks = async (request, response) => {
                 // Calculate expiration date based on billing cycle
                 const now = new Date();
                 const expiresAt = new Date(now);
-                if (sessionData.metadata.billingCycle === 'annually') {
+                if (billingCycle === 'annually') {
                     expiresAt.setFullYear(now.getFullYear() + 1);
                 } else {
                     expiresAt.setMonth(now.getMonth() + 1);
@@ -113,7 +129,8 @@ export const stripeWebhooks = async (request, response) => {
                         pricing: planName.toLowerCase(),
                         $set: {
                             'subscription.planName': planName.toLowerCase(),
-                            'subscription.billingCycle': sessionData.metadata.billingCycle,
+                            'subscription.billingCycle': billingCycle,
+                            'subscription.price': parseFloat(price),
                             'subscription.startDate': now,
                             'subscription.expiresAt': expiresAt,
                             'subscription.isActive': true
@@ -125,6 +142,22 @@ export const stripeWebhooks = async (request, response) => {
                 if (updatedUser) {
                     console.log(`✅ Payment successful: User ${userId} upgraded to ${planName}`);
                     console.log(`🎯 Updated user pricing in database:`, updatedUser.pricing);
+                    console.log(`💰 Price paid: $${price} (${billingCycle})`);
+                    
+                    // Create subscription record for tracking
+                    try {
+                        await Subscription.createSubscriptionRecord(
+                            userId,
+                            updatedUser.username,
+                            updatedUser.email,
+                            planName,
+                            parseFloat(price),
+                            billingCycle
+                        );
+                        console.log('📈 Subscription record created successfully');
+                    } catch (recordError) {
+                        console.error('❌ Error creating subscription record:', recordError);
+                    }
                 } else {
                     console.error(`❌ Failed to update user ${userId} pricing`);
                 }
@@ -137,7 +170,7 @@ export const stripeWebhooks = async (request, response) => {
     } else if (event.type === "checkout.session.completed") {
         console.log('🛒 Checkout session completed!');
         const session = event.data.object;
-        const { userId, planName } = session.metadata;
+        const { userId, planName, billingCycle, price } = session.metadata;
         
         console.log(`💳 Processing checkout completion for user ${userId}, plan: ${planName}`);
         
@@ -145,7 +178,7 @@ export const stripeWebhooks = async (request, response) => {
             // Calculate expiration date based on billing cycle
             const now = new Date();
             const expiresAt = new Date(now);
-            if (session.metadata.billingCycle === 'annually') {
+            if (billingCycle === 'annually') {
                 expiresAt.setFullYear(now.getFullYear() + 1);
             } else {
                 expiresAt.setMonth(now.getMonth() + 1);
@@ -157,7 +190,8 @@ export const stripeWebhooks = async (request, response) => {
                     pricing: planName.toLowerCase(),
                     $set: {
                         'subscription.planName': planName.toLowerCase(),
-                        'subscription.billingCycle': session.metadata.billingCycle,
+                        'subscription.billingCycle': billingCycle,
+                        'subscription.price': parseFloat(price),
                         'subscription.startDate': now,
                         'subscription.expiresAt': expiresAt,
                         'subscription.isActive': true
@@ -169,6 +203,22 @@ export const stripeWebhooks = async (request, response) => {
             if (updatedUser) {
                 console.log(`✅ Checkout completed: User ${userId} upgraded to ${planName}`);
                 console.log(`🎯 Updated user pricing in database:`, updatedUser.pricing);
+                console.log(`💰 Price paid: $${price} (${billingCycle})`);
+                
+                // Create subscription record for tracking
+                try {
+                    await Subscription.createSubscriptionRecord(
+                        userId,
+                        updatedUser.username,
+                        updatedUser.email,
+                        planName,
+                        parseFloat(price),
+                        billingCycle
+                    );
+                    console.log('📈 Subscription record created successfully');
+                } catch (recordError) {
+                    console.error('❌ Error creating subscription record:', recordError);
+                }
             } else {
                 console.error(`❌ Failed to update user ${userId} pricing`);
             }

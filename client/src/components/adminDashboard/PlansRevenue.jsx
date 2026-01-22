@@ -2,8 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence, useScroll, useSpring, useTransform } from 'framer-motion';
 import { 
   TrendingUp, Calendar, Clock, DollarSign, Users, Activity, Zap, Layers,
-  Filter, Download, Maximize2, RefreshCcw, AlertCircle, Timer, ShieldCheck, Mail, Cpu, Globe,
-  Edit, Trash2, Plus, X, Check
+  Filter, Download, Maximize2, RefreshCcw, AlertCircle, Timer, ShieldCheck, Mail, Cpu, Globe
 } from 'lucide-react';
 import { 
   AreaChart, Area, XAxis, YAxis, CartesianGrid, 
@@ -11,33 +10,19 @@ import {
 } from 'recharts';
 import { pricingData } from '../../assets/assets';
 import { useAppContext } from '../../context/useAppContext';
-import CustomPopUp from './CustomPopUp';
 
 const PlansRevenue = () => {
   const { 
     revenueData, 
     revenueLoading, 
     fetchRevenueData,
-    createSubscription,
-    updateSubscription,
-    deleteSubscription,
-    extendSubscription,
-    cancelSubscription,
-    allUsers,
-    fetchAllUsers
+    generatePDFReport
   } = useAppContext();
   
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [activePlan, setActivePlan] = useState(null);
-  const [showModal, setShowModal] = useState(false);
-  const [modalType, setModalType] = useState('');
-  const [selectedSubscription, setSelectedSubscription] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState({
-    userId: '',
-    planName: 'Basic',
-    duration: 30
-  });
+  const [filterPlan, setFilterPlan] = useState('all');
+  const [filterBilling, setFilterBilling] = useState('all');
+  const [chartFilter, setChartFilter] = useState('all');
   const containerRef = useRef(null);
 
   const { scrollYProgress } = useScroll();
@@ -45,10 +30,7 @@ const PlansRevenue = () => {
 
   useEffect(() => {
     fetchRevenueData();
-    if (!allUsers || allUsers.length === 0) {
-      fetchAllUsers();
-    }
-  }, [fetchRevenueData, fetchAllUsers, allUsers]);
+  }, [fetchRevenueData]);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -78,63 +60,6 @@ const PlansRevenue = () => {
 
   const resetSession = () => {
     fetchRevenueData();
-  };
-
-  const openModal = (type, subscription = null) => {
-    setModalType(type);
-    setSelectedSubscription(subscription);
-    if (type === 'edit' && subscription) {
-      setFormData({
-        userId: subscription.userId || '',
-        planName: subscription.planName || 'Basic',
-        duration: 30
-      });
-    } else {
-      setFormData({ userId: '', planName: 'Basic', duration: 30 });
-    }
-    setShowModal(true);
-  };
-
-  const closeModal = () => {
-    setShowModal(false);
-    setSelectedSubscription(null);
-    setFormData({ userId: '', planName: 'Basic', duration: 30 });
-  };
-
-  const handleSubmit = async () => {
-    setLoading(true);
-    let result;
-
-    try {
-      switch (modalType) {
-        case 'create':
-          result = await createSubscription(formData);
-          break;
-        case 'edit':
-          result = await updateSubscription(selectedSubscription.id, formData);
-          break;
-        case 'delete':
-          result = await deleteSubscription(selectedSubscription.id);
-          break;
-        case 'extend':
-          result = await extendSubscription(selectedSubscription.id, formData.duration);
-          break;
-        case 'cancel':
-          result = await cancelSubscription(selectedSubscription.id);
-          break;
-        default:
-          return;
-      }
-
-      if (result?.success) {
-        closeModal();
-        fetchRevenueData(); // Refresh data
-      }
-    } catch (error) {
-      console.error('Operation failed:', error);
-    } finally {
-      setLoading(false);
-    }
   };
 
   return (
@@ -190,7 +115,12 @@ const PlansRevenue = () => {
              <motion.button whileHover={{ scale: 1.1, rotate: 180 }} onClick={resetSession} className="p-4 bg-white/5 rounded-xl border border-white/10 text-[#FF7222]">
                 <RefreshCcw size={20} />
              </motion.button>
-             <motion.button whileHover={{ scale: 1.05, y: -2 }} whileTap={{ scale: 0.95 }} className="flex items-center gap-3 bg-[#FF7222] px-8 py-3 rounded-xl text-black font-black text-[10px] uppercase shadow-[0_10px_30px_-10px_#FF7222]">
+             <motion.button 
+               whileHover={{ scale: 1.05, y: -2 }} 
+               whileTap={{ scale: 0.95 }} 
+               onClick={() => generatePDFReport(filterPlan, filterBilling, chartFilter)}
+               className="flex items-center gap-3 bg-[#FF7222] px-8 py-3 rounded-xl text-black font-black text-[10px] uppercase shadow-[0_10px_30px_-10px_#FF7222]"
+             >
                 <Download size={16} /> Neural Export
              </motion.button>
           </div>
@@ -214,8 +144,8 @@ const PlansRevenue = () => {
           {[
             { label: 'Revenue Magnitude', value: revenueData?.metrics?.totalRevenue ? `$${revenueData.metrics.totalRevenue.toLocaleString()}` : '$0', grow: '+12.5%', icon: DollarSign, color: '#FF7222' },
             { label: 'Active Uplinks', value: revenueData?.metrics?.activeSubscriptions || 0, grow: '+3.2%', icon: Globe, color: '#3b82f6' },
-            { label: 'Sync Stability', value: revenueData?.metrics?.conversionRate || '99.9%', grow: '+0.1%', icon: Cpu, color: '#10b981' },
-            { label: 'Power Draw', value: revenueData?.metrics?.powerConsumption || '24.8kW', grow: '+5.4%', icon: Zap, color: '#f59e0b' },
+            { label: 'Sync Stability', value: revenueData?.metrics?.conversionRate || '0.0%', grow: `${revenueData?.syncStabilityChange >= 0 ? '+' : ''}${revenueData?.syncStabilityChange || '0.0'}%`, icon: Cpu, color: '#10b981' },
+            { label: 'Monthly Revenue', value: revenueData?.metrics?.powerConsumption || '$0', grow: `${revenueData?.mrrChange >= 0 ? '+' : ''}${revenueData?.mrrChange || '0.0'}%`, icon: Zap, color: '#f59e0b' },
           ].map((metric, i) => (
             <motion.div 
               key={i}
@@ -253,29 +183,67 @@ const PlansRevenue = () => {
             <div className="flex justify-between items-center mb-8">
               <h3 className="text-2xl font-bold text-[#FF7222]">Revenue Analytics</h3>
               <div className="flex gap-2">
-                <button className="px-4 py-2 bg-[#FF7222]/20 text-[#FF7222] rounded-lg text-sm">7D</button>
-                <button className="px-4 py-2 bg-white/5 text-gray-400 rounded-lg text-sm">30D</button>
-                <button className="px-4 py-2 bg-white/5 text-gray-400 rounded-lg text-sm">90D</button>
+                <button 
+                  onClick={() => setChartFilter('all')}
+                  className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                    chartFilter === 'all' ? 'bg-[#FF7222] text-black' : 'bg-white/5 text-gray-400 hover:text-white'
+                  }`}
+                >
+                  All Plans
+                </button>
+                <button 
+                  onClick={() => setChartFilter('starter')}
+                  className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                    chartFilter === 'starter' ? 'bg-[#FF7222] text-black' : 'bg-white/5 text-gray-400 hover:text-white'
+                  }`}
+                >
+                  Starter
+                </button>
+                <button 
+                  onClick={() => setChartFilter('pro')}
+                  className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                    chartFilter === 'pro' ? 'bg-[#FF7222] text-black' : 'bg-white/5 text-gray-400 hover:text-white'
+                  }`}
+                >
+                  Pro
+                </button>
+                <button 
+                  onClick={() => setChartFilter('elite')}
+                  className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                    chartFilter === 'elite' ? 'bg-[#FF7222] text-black' : 'bg-white/5 text-gray-400 hover:text-white'
+                  }`}
+                >
+                  Elite
+                </button>
               </div>
             </div>
             <div className="h-80 w-full">
               <ResponsiveContainer width="100%" height="100%" minWidth={300} minHeight={200}>
-                <AreaChart data={revenueData?.chartData || []}>
+                <AreaChart data={revenueData?.chartData?.filter(data => {
+                  if (chartFilter === 'all') return true;
+                  return data.planFilter === chartFilter;
+                }) || []}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#333" />
                   <XAxis dataKey="date" stroke="#666" />
                   <YAxis stroke="#666" />
                   <Tooltip 
                     contentStyle={{ 
-                      backgroundColor: '#000', 
-                      border: '1px solid #FF7222', 
-                      borderRadius: '10px' 
-                    }} 
+                      backgroundColor: 'rgba(0,0,0,0.9)', 
+                      border: '2px solid #FF7222', 
+                      borderRadius: '15px',
+                      boxShadow: '0 10px 30px rgba(255,114,34,0.3)'
+                    }}
+                    labelStyle={{ color: '#FF7222', fontWeight: 'bold' }}
+                    formatter={(value) => [`$${value.toLocaleString()}`, 'Revenue']}
                   />
                   <Area 
                     type="monotone" 
                     dataKey="revenue" 
                     stroke="#FF7222" 
-                    fill="url(#colorRevenue)" 
+                    fill="url(#colorRevenue)"
+                    strokeWidth={3}
+                    dot={{ fill: '#FF7222', strokeWidth: 2, r: 6 }}
+                    activeDot={{ r: 8, stroke: '#FF7222', strokeWidth: 2, fill: '#FF7222' }}
                   />
                   <defs>
                     <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
@@ -297,10 +265,10 @@ const PlansRevenue = () => {
             <h3 className="text-xl font-bold mb-6 text-[#FF7222]">Quick Stats</h3>
             <div className="space-y-6">
               {[
-                { label: 'Today Revenue', value: '$2,847', change: '+15.3%' },
-                { label: 'New Subscriptions', value: '23', change: '+8.1%' },
-                { label: 'Churn Rate', value: '2.1%', change: '-0.5%' },
-                { label: 'Avg. Revenue/User', value: '$124', change: '+12.7%' }
+                { label: 'Today Revenue', value: revenueData?.quickStats?.todayRevenue?.value || '$0', change: revenueData?.quickStats?.todayRevenue?.change || '+0.0%' },
+                { label: 'New Subscriptions', value: revenueData?.quickStats?.newSubscriptions?.value || '0', change: revenueData?.quickStats?.newSubscriptions?.change || '+0.0%' },
+                { label: 'Churn Rate', value: revenueData?.quickStats?.churnRate?.value || '0.0%', change: revenueData?.quickStats?.churnRate?.change || '+0.0%' },
+                { label: 'Avg. Revenue/User', value: revenueData?.quickStats?.avgRevenuePerUser?.value || '$0', change: revenueData?.quickStats?.avgRevenuePerUser?.change || '+0.0%' }
               ].map((stat, i) => (
                 <div key={i} className="flex justify-between items-center p-4 bg-white/5 rounded-xl">
                   <div>
@@ -308,7 +276,9 @@ const PlansRevenue = () => {
                     <p className="text-lg font-bold">{stat.value}</p>
                   </div>
                   <span className={`text-xs px-2 py-1 rounded ${
-                    stat.change.startsWith('+') ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
+                    stat.change.startsWith('+') && !stat.label.includes('Churn') ? 'bg-green-500/20 text-green-400' : 
+                    stat.change.startsWith('-') && stat.label.includes('Churn') ? 'bg-green-500/20 text-green-400' :
+                    'bg-red-500/20 text-red-400'
                   }`}>
                     {stat.change}
                   </span>
@@ -327,15 +297,25 @@ const PlansRevenue = () => {
           <div className="flex justify-between items-center mb-8">
             <h3 className="text-2xl font-bold text-[#FF7222]">Active Subscriptions</h3>
             <div className="flex gap-4">
-              <button 
-                onClick={() => openModal('create')}
-                className="flex items-center gap-2 px-4 py-2 bg-[#FF7222] text-black rounded-lg font-semibold hover:bg-[#FF7222]/80 transition-colors"
+              <select 
+                value={filterPlan} 
+                onChange={(e) => setFilterPlan(e.target.value)}
+                className="px-4 py-2 bg-white/10 text-white rounded-lg border border-white/20 focus:border-[#FF7222] focus:outline-none"
               >
-                <Plus size={16} /> Add Subscription
-              </button>
-              <button className="flex items-center gap-2 px-4 py-2 bg-white/10 text-white rounded-lg hover:bg-white/20 transition-colors">
-                <Filter size={16} /> Filter
-              </button>
+                <option value="all" className="bg-black">All Plans</option>
+                <option value="starter" className="bg-black">Starter</option>
+                <option value="pro" className="bg-black">Pro Performance</option>
+                <option value="elite" className="bg-black">Elite Force</option>
+              </select>
+              <select 
+                value={filterBilling} 
+                onChange={(e) => setFilterBilling(e.target.value)}
+                className="px-4 py-2 bg-white/10 text-white rounded-lg border border-white/20 focus:border-[#FF7222] focus:outline-none"
+              >
+                <option value="all" className="bg-black">All Billing</option>
+                <option value="monthly" className="bg-black">Monthly</option>
+                <option value="annually" className="bg-black">Annual</option>
+              </select>
             </div>
           </div>
           
@@ -345,14 +325,18 @@ const PlansRevenue = () => {
                 <tr className="border-b border-white/10">
                   <th className="text-left py-4 px-6 text-xs font-bold uppercase tracking-wide text-gray-400">User</th>
                   <th className="text-left py-4 px-6 text-xs font-bold uppercase tracking-wide text-gray-400">Plan</th>
+                  <th className="text-left py-4 px-6 text-xs font-bold uppercase tracking-wide text-gray-400">Billing</th>
                   <th className="text-left py-4 px-6 text-xs font-bold uppercase tracking-wide text-gray-400">Status</th>
                   <th className="text-left py-4 px-6 text-xs font-bold uppercase tracking-wide text-gray-400">Revenue</th>
                   <th className="text-left py-4 px-6 text-xs font-bold uppercase tracking-wide text-gray-400">Expires</th>
-                  <th className="text-left py-4 px-6 text-xs font-bold uppercase tracking-wide text-gray-400">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {(revenueData?.subscriptions || []).map((sub, i) => {
+                {(revenueData?.subscriptions || [])
+                  .filter(sub => sub.role !== 'admin')
+                  .filter(sub => filterPlan === 'all' || sub.planName?.toLowerCase().includes(filterPlan))
+                  .filter(sub => filterBilling === 'all' || sub.billingCycle === filterBilling)
+                  .map((sub, i) => {
                   const status = getSubscriptionStatus(sub.endDate);
                   return (
                     <motion.tr 
@@ -379,6 +363,11 @@ const PlansRevenue = () => {
                         </span>
                       </td>
                       <td className="py-4 px-6">
+                        <span className="px-2 py-1 bg-blue-500/20 text-blue-400 rounded text-xs font-semibold">
+                          {sub.billingCycle || 'monthly'}
+                        </span>
+                      </td>
+                      <td className="py-4 px-6">
                         <div className="flex items-center gap-2">
                           <div className={`w-2 h-2 rounded-full ${status.bg}`}></div>
                           <span className={`text-sm font-semibold ${status.color}`}>
@@ -396,38 +385,6 @@ const PlansRevenue = () => {
                           {new Date(sub.endDate).toLocaleDateString()}
                         </span>
                       </td>
-                      <td className="py-4 px-6">
-                        <div className="flex gap-2">
-                          <button 
-                            onClick={() => openModal('edit', sub)}
-                            className="p-2 bg-blue-500/20 text-blue-400 rounded-lg hover:bg-blue-500/30 transition-colors"
-                            title="Edit"
-                          >
-                            <Edit size={14} />
-                          </button>
-                          <button 
-                            onClick={() => openModal('extend', sub)}
-                            className="p-2 bg-yellow-500/20 text-yellow-400 rounded-lg hover:bg-yellow-500/30 transition-colors"
-                            title="Extend"
-                          >
-                            <Timer size={14} />
-                          </button>
-                          <button 
-                            onClick={() => openModal('cancel', sub)}
-                            className="p-2 bg-orange-500/20 text-orange-400 rounded-lg hover:bg-orange-500/30 transition-colors"
-                            title="Cancel"
-                          >
-                            <AlertCircle size={14} />
-                          </button>
-                          <button 
-                            onClick={() => openModal('delete', sub)}
-                            className="p-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors"
-                            title="Delete"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                      </td>
                     </motion.tr>
                   );
                 })}
@@ -435,147 +392,7 @@ const PlansRevenue = () => {
             </table>
           </div>
         </motion.div>
-
-        {/* --- PRICING PLANS MANAGEMENT --- */}
-        <motion.div 
-          initial={{ scale: 0.95, opacity: 0 }}
-          whileInView={{ scale: 1, opacity: 1 }}
-          className="bg-black/40 backdrop-blur-3xl p-10 rounded-[3.5rem] border border-white/10"
-        >
-          <div className="flex justify-between items-center mb-8">
-            <h3 className="text-2xl font-bold text-[#FF7222]">Pricing Plans</h3>
-            <button className="flex items-center gap-2 px-4 py-2 bg-[#FF7222] text-black rounded-lg font-semibold hover:bg-[#FF7222]/80 transition-colors">
-              <Layers size={16} /> Create Plan
-            </button>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {pricingData.map((plan, i) => (
-              <motion.div 
-                key={plan.id || i}
-                whileHover={{ scale: 1.02, y: -5 }}
-                className="bg-white/5 backdrop-blur-xl p-6 rounded-2xl border border-white/10 relative overflow-hidden group cursor-pointer"
-              >
-                {plan.popular && (
-                  <div className="absolute top-4 right-4 px-2 py-1 bg-[#FF7222] text-black text-xs font-bold rounded-full">
-                    POPULAR
-                  </div>
-                )}
-                <div className="mb-6">
-                  <h4 className="text-xl font-bold mb-2">{plan.name}</h4>
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-3xl font-bold text-[#FF7222]">${plan.price}</span>
-                    <span className="text-gray-400">/{plan.duration}</span>
-                  </div>
-                </div>
-                
-                <ul className="space-y-3 mb-6">
-                  {plan.features?.map((feature, fi) => (
-                    <li key={fi} className="flex items-center gap-2 text-sm">
-                      <ShieldCheck size={16} className="text-[#FF7222]" />
-                      {feature}
-                    </li>
-                  ))}
-                </ul>
-                
-                <div className="flex gap-2">
-                  <button className="flex-1 py-2 bg-[#FF7222] text-black rounded-lg font-semibold hover:bg-[#FF7222]/80 transition-colors">
-                    Edit
-                  </button>
-                  <button className="px-4 py-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors">
-                    Delete
-                  </button>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </motion.div>
       </div>
-
-      {/* CustomPopUp Integration */}
-      <CustomPopUp
-        isOpen={showModal}
-        onClose={closeModal}
-        onConfirm={handleSubmit}
-        type={modalType === 'delete' || modalType === 'cancel' ? 'delete' : modalType === 'create' ? 'add' : 'edit'}
-        title={`${modalType.toUpperCase()} SUBSCRIPTION`}
-        confirmText={modalType === 'delete' ? 'DELETE' : modalType === 'cancel' ? 'CANCEL' : modalType === 'extend' ? 'EXTEND' : modalType === 'edit' ? 'UPDATE' : 'CREATE'}
-        loading={loading}
-      >
-        <div className="space-y-4">
-          {modalType === 'create' || modalType === 'edit' ? (
-            <>
-              <div>
-                <label className="block text-sm font-medium mb-2 text-gray-300">User</label>
-                <select
-                  value={formData.userId}
-                  onChange={(e) => setFormData({ ...formData, userId: e.target.value })}
-                  className="w-full p-3 bg-white/5 border border-white/10 rounded-lg focus:border-[#FF7222] focus:outline-none text-white"
-                  required
-                >
-                  <option value="" className="bg-black">Select User</option>
-                  {allUsers?.map(user => (
-                    <option key={user._id} value={user._id} className="bg-black">
-                      {user.username} ({user.email})
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2 text-gray-300">Plan</label>
-                <select
-                  value={formData.planName}
-                  onChange={(e) => setFormData({ ...formData, planName: e.target.value })}
-                  className="w-full p-3 bg-white/5 border border-white/10 rounded-lg focus:border-[#FF7222] focus:outline-none text-white"
-                >
-                  <option value="Basic" className="bg-black">Basic - $49</option>
-                  <option value="Premium" className="bg-black">Premium - $199</option>
-                  <option value="Elite Force" className="bg-black">Elite Force - $499</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2 text-gray-300">Duration (days)</label>
-                <input
-                  type="number"
-                  value={formData.duration}
-                  onChange={(e) => setFormData({ ...formData, duration: parseInt(e.target.value) })}
-                  className="w-full p-3 bg-white/5 border border-white/10 rounded-lg focus:border-[#FF7222] focus:outline-none text-white"
-                  min="1"
-                  max="365"
-                />
-              </div>
-            </>
-          ) : modalType === 'extend' ? (
-            <div>
-              <label className="block text-sm font-medium mb-2 text-gray-300">Extend by (days)</label>
-              <input
-                type="number"
-                value={formData.duration}
-                onChange={(e) => setFormData({ ...formData, duration: parseInt(e.target.value) })}
-                className="w-full p-3 bg-white/5 border border-white/10 rounded-lg focus:border-[#FF7222] focus:outline-none text-white"
-                min="1"
-                max="365"
-              />
-            </div>
-          ) : (
-            <div className="text-center py-4">
-              <p className="text-gray-300 mb-2">
-                Are you sure you want to {modalType} this subscription?
-              </p>
-              {selectedSubscription && (
-                <div className="bg-white/5 rounded-lg p-4 mt-4">
-                  <p className="text-sm text-gray-400">User: {selectedSubscription.userName}</p>
-                  <p className="text-sm text-gray-400">Plan: {selectedSubscription.planName}</p>
-                  <p className="text-sm text-gray-400">Amount: ${selectedSubscription.amount}</p>
-                </div>
-              )}
-              {modalType === 'delete' && (
-                <p className="text-red-400 text-sm mt-2">This action cannot be undone.</p>
-              )}
-            </div>
-          )}
-        </div>
-      </CustomPopUp>
     </div>
   );
 };

@@ -31,7 +31,7 @@ export const AppProvider = ({ children }) => {
   const [banAlert, setBanAlert] = useState(null);
 
   // API base URL
-  const API_BASE = 'http://localhost:3000/api';
+  const API_BASE = `${import.meta.env.VITE_BACKEND_URL}/api`;
 
   // Admin drill management
   const [drills, setDrills] = useState([]);
@@ -53,6 +53,8 @@ export const AppProvider = ({ children }) => {
   const [userSubscription, setUserSubscription] = useState(null);
   const [subscriptionTimer, setSubscriptionTimer] = useState(0);
   const [subscriptionLoading, setSubscriptionLoading] = useState(false);
+  const [showExpiredModal, setShowExpiredModal] = useState(false);
+  const [expiredModalDismissed, setExpiredModalDismissed] = useState(false);
   // Premium modal state (show on login when user has upgraded)
   const [showPremiumModal, setShowPremiumModal] = useState(false);
   const [premiumModalShownUserId, setPremiumModalShownUserId] = useState(null);
@@ -96,7 +98,7 @@ export const AppProvider = ({ children }) => {
   // Socket for real-time drill updates
   useEffect(() => {
     if (isLoaded && userId) {
-      const newSocket = io('http://localhost:3000', {
+      const newSocket = io(import.meta.env.VITE_BACKEND_URL, {
         transports: ['websocket', 'polling'],
         timeout: 5000,
         reconnection: true,
@@ -108,7 +110,6 @@ export const AppProvider = ({ children }) => {
 
       // Connection events
       newSocket.on('connect', () => {
-        console.log('Connected to server');
         newSocket.emit('join-user-room', userId);
         newSocket.emit('join-workouts-room');
         newSocket.emit('join-categories-room');
@@ -143,26 +144,76 @@ export const AppProvider = ({ children }) => {
         setCategories(prev => prev.filter(c => c._id !== id));
       });
 
-      // Real-time plans updates
-      newSocket.on('plan-created', (plan) => {
-        setPlans(prev => [plan, ...prev]);
+      // Real-time revenue updates
+      newSocket.on('subscription-created', (data) => {
+        setRevenueData(prev => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            subscriptions: [data.subscription, ...prev.subscriptions],
+            metrics: {
+              ...prev.metrics,
+              totalRevenue: prev.metrics.totalRevenue + data.subscription.amount,
+              activeSubscriptions: prev.metrics.activeSubscriptions + 1
+            }
+          };
+        });
       });
 
-      newSocket.on('plan-updated', (plan) => {
-        setPlans(prev => prev.map(p => p._id === plan._id ? plan : p));
+      newSocket.on('subscription-updated', (data) => {
+        setRevenueData(prev => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            subscriptions: prev.subscriptions.map(sub => 
+              sub.id === data.subscription.id ? data.subscription : sub
+            )
+          };
+        });
       });
 
-      newSocket.on('plan-deleted', ({ id }) => {
-        setPlans(prev => prev.filter(p => p._id !== id));
+      newSocket.on('subscription-deleted', (data) => {
+        setRevenueData(prev => {
+          if (!prev) return prev;
+          const deletedSub = prev.subscriptions.find(sub => sub.id === data.subscriptionId);
+          return {
+            ...prev,
+            subscriptions: prev.subscriptions.filter(sub => sub.id !== data.subscriptionId),
+            metrics: {
+              ...prev.metrics,
+              totalRevenue: prev.metrics.totalRevenue - (deletedSub?.amount || 0),
+              activeSubscriptions: Math.max(0, prev.metrics.activeSubscriptions - 1)
+            }
+          };
+        });
       });
 
-      newSocket.on('plans-seeded', (plans) => {
-        setPlans(plans);
+      newSocket.on('subscription-extended', (data) => {
+        setRevenueData(prev => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            subscriptions: prev.subscriptions.map(sub => 
+              sub.id === data.subscription.id ? data.subscription : sub
+            )
+          };
+        });
+      });
+
+      newSocket.on('subscription-cancelled', (data) => {
+        setRevenueData(prev => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            subscriptions: prev.subscriptions.map(sub => 
+              sub.id === data.subscription.id ? data.subscription : sub
+            )
+          };
+        });
       });
 
       // Handle real-time ban notification
       newSocket.on('banned', (banData) => {
-        console.log('User banned:', banData);
         setBanAlert(banData.message);
         // Auto logout banned user
         setTimeout(() => {
@@ -194,7 +245,7 @@ export const AppProvider = ({ children }) => {
       });
 
       newSocket.on('disconnect', () => {
-        console.log('Disconnected from server');
+        // Connection closed
       });
 
       // Periodic check for ban status every 30 seconds
@@ -211,9 +262,9 @@ export const AppProvider = ({ children }) => {
     }
   }, [isLoaded, userId]);
 
-  // Fetch workouts for the current user
-  const fetchWorkouts = async () => {
-    if (!userId) return;
+  // Fetch workouts for the current user (with caching)
+  const fetchWorkouts = useCallback(async () => {
+    if (!userId || loading) return;
 
     setLoading(true);
     try {
@@ -236,20 +287,17 @@ export const AppProvider = ({ children }) => {
         setError(data.message);
       }
     } catch (err) {
-      console.error('Error fetching workouts:', err);
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  };
+  }, [userId, loading, API_BASE]);
 
   // Create a new workout
   const createWorkout = async (workoutData) => {
     if (!userId) return { success: false, message: 'User not authenticated' };
 
     try {
-      console.log('Creating workout:', workoutData);
-      
       const token = await window.Clerk.session.getToken();
       const response = await fetch(`${API_BASE}/workouts`, {
         method: 'POST',
@@ -265,7 +313,6 @@ export const AppProvider = ({ children }) => {
       }
 
       const data = await response.json();
-      console.log('Create workout response:', data);
       
       if (data.success) {
         setWorkouts(prev => {
@@ -279,7 +326,6 @@ export const AppProvider = ({ children }) => {
         return { success: false, message: data.message };
       }
     } catch (err) {
-      console.error('Error creating workout:', err);
       setError(err.message);
       return { success: false, message: err.message };
     }
@@ -290,8 +336,6 @@ export const AppProvider = ({ children }) => {
     if (!userId) return { success: false, message: 'User not authenticated' };
 
     try {
-      console.log('Updating workout:', { id, workoutData });
-      
       const token = await window.Clerk.session.getToken();
       const response = await fetch(`${API_BASE}/workouts/${id}`, {
         method: 'PUT',
@@ -307,7 +351,6 @@ export const AppProvider = ({ children }) => {
       }
 
       const data = await response.json();
-      console.log('Update workout response:', data);
       
       if (data.success) {
         setWorkouts(prev => prev.map(w => w._id === id ? data.workout : w));
@@ -317,7 +360,6 @@ export const AppProvider = ({ children }) => {
         return { success: false, message: data.message };
       }
     } catch (err) {
-      console.error('Error updating workout:', err);
       setError(err.message);
       return { success: false, message: err.message };
     }
@@ -328,8 +370,6 @@ export const AppProvider = ({ children }) => {
     if (!userId) return { success: false, message: 'User not authenticated' };
 
     try {
-      console.log('Deleting workout:', id);
-      
       const token = await window.Clerk.session.getToken();
       const response = await fetch(`${API_BASE}/workouts/${id}`, {
         method: 'DELETE',
@@ -340,23 +380,19 @@ export const AppProvider = ({ children }) => {
 
       // Handle 404 errors gracefully - workout might already be deleted
       if (response.status === 404) {
-        console.log('Workout not found (404), removing from UI');
         setWorkouts(prev => prev.filter(w => w._id !== id));
         return { success: true, message: 'Workout deleted successfully' };
       }
 
       const data = await response.json();
-      console.log('Delete workout response:', data);
       
       if (response.ok && data.success) {
         setWorkouts(prev => prev.filter(w => w._id !== id));
         return { success: true, message: data.message };
       } else {
-        console.error('Delete failed:', data.message);
         return { success: false, message: data.message || 'Delete failed' };
       }
     } catch (err) {
-      console.error('Error deleting workout:', err);
       // If network error, still remove from UI for better UX
       setWorkouts(prev => prev.filter(w => w._id !== id));
       return { success: true, message: 'Workout deleted successfully' };
@@ -368,8 +404,6 @@ export const AppProvider = ({ children }) => {
     if (!userId) return { success: false, message: 'User not authenticated' };
 
     try {
-      console.log('Completing workout:', { id, duration });
-      
       const response = await fetch(`${API_BASE}/workouts/${id}/complete`, {
         method: 'PATCH',
         headers: {
@@ -380,7 +414,6 @@ export const AppProvider = ({ children }) => {
       });
 
       const data = await response.json();
-      console.log('Complete workout response:', data);
       
       if (data.success) {
         setWorkouts(prev => prev.map(w => w._id === id ? data.workout : w));
@@ -390,15 +423,14 @@ export const AppProvider = ({ children }) => {
         return { success: false, message: data.message };
       }
     } catch (err) {
-      console.error('Error completing workout:', err);
       setError(err.message);
       return { success: false, message: err.message };
     }
   };
 
-  // Fetch nutrition entries for the current user
-  const fetchNutrition = async (date = null) => {
-    if (!userId) return;
+  // Fetch nutrition entries for the current user (with caching)
+  const fetchNutrition = useCallback(async (date = null) => {
+    if (!userId || loading) return;
 
     setLoading(true);
     try {
@@ -427,10 +459,10 @@ export const AppProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [userId, loading, API_BASE]);
 
-  // Fetch nutrition statistics
-  const fetchNutritionStats = async (date = null) => {
+  // Fetch nutrition statistics (with caching)
+  const fetchNutritionStats = useCallback(async (date = null) => {
     if (!userId) return;
 
     try {
@@ -457,7 +489,7 @@ export const AppProvider = ({ children }) => {
       setError(err.message);
       return null;
     }
-  };
+  }, [userId, API_BASE]);
 
   // Fetch progress entries
   const fetchProgress = async () => {
@@ -516,7 +548,6 @@ export const AppProvider = ({ children }) => {
   const fetchUser = useCallback(async () => {
     if (!userId) return;
 
-    console.log('🔍 fetchUser called for userId:', userId);
     try {
       const response = await fetch(`${API_BASE}/users/me`, {
         headers: {
@@ -526,16 +557,12 @@ export const AppProvider = ({ children }) => {
       });
 
       const data = await response.json();
-      console.log('📊 fetchUser response:', data);
       
       if (data.success) {
-        console.log('✅ Setting user data:', data.user);
-        console.log('🎯 User pricing from database:', data.user.pricing);
         setUser(data.user);
         
         // Initialize subscription if not exists
         if (!data.user.subscription?.expiresAt) {
-          console.log('🔄 Initializing subscription for user...');
           fetch(`${API_BASE}/users/me/init-subscription`, {
             method: 'POST',
             headers: {
@@ -544,40 +571,41 @@ export const AppProvider = ({ children }) => {
             }
           }).then(res => res.json()).then(subData => {
             if (subData.success) {
-              console.log('✅ Subscription initialized:', subData.subscription);
               // Refetch user data to get updated subscription
               setTimeout(() => fetchUser(), 1000);
             }
-          }).catch(err => console.error('Subscription init error:', err));
+          }).catch(err => {});
         }
 
         // Check if user is banned immediately after fetching user data
         if (data.user.isBanned) {
-          console.log('🚫 User is banned from DB, showing ban alert');
           setBanAlert({
             message: 'Your account has been suspended',
             reason: data.user.banReason || 'Your account has been suspended. Please contact support.'
           });
         }
 
-        // Show premium modal once per login if pricing is pro/elite and on dashboard route
+        // Check if subscription is expired - but don't show modal anywhere
+        // Modal logic removed as per user request
+
+        // Show premium modal once per login if pricing is pro/elite and on dashboard route and subscription is active
         try {
           const pricing = (data.user.pricing || '').toString().toLowerCase();
           const currentPath = window.location.pathname;
           const isDashboardRoute = currentPath.startsWith('/dashboard');
+          const isSubscriptionActive = data.user.subscription?.isActive && data.user.subscription?.status !== 'expired';
+          const modalKey = `premiumModalShown_${data.user._id}`;
           
-          if ((pricing === 'pro' || pricing === 'elite') && premiumModalShownUserId !== data.user._id && isDashboardRoute) {
+          if ((pricing === 'pro' || pricing === 'elite') && !localStorage.getItem(modalKey) && isDashboardRoute && isSubscriptionActive) {
             setShowPremiumModal(true);
-            setPremiumModalShownUserId(data.user._id);
+            localStorage.setItem(modalKey, 'true');
           }
         } catch (err) {
-          console.warn('Premium modal logic failed', err);
+          // Premium modal logic failed silently
         }
       } else {
-        console.error('❌ fetchUser failed:', data.message);
         // Check if user is banned
         if (data.message === "Account banned") {
-          console.log('🚫 User is banned, showing ban alert');
           setBanAlert({
             message: 'Your account has been suspended',
             reason: 'Your account has been suspended. Please contact support.'
@@ -587,10 +615,9 @@ export const AppProvider = ({ children }) => {
         }
       }
     } catch (err) {
-      console.error('💥 fetchUser error:', err);
       setError(err.message);
     }
-  }, [userId, premiumModalShownUserId]);
+  }, [userId, premiumModalShownUserId, expiredModalDismissed, showExpiredModal]);
 
   // Real-time user data refresh on payment success
   useEffect(() => {
@@ -691,14 +718,50 @@ export const AppProvider = ({ children }) => {
     }
   };
 
-  // Load workouts and nutrition when user is authenticated
+  // Load workouts and nutrition when user is authenticated (with debouncing)
   useEffect(() => {
-    if (isLoaded && userId) {
-      fetchWorkouts();
-      fetchNutrition();
-      fetchNutritionStats();
-      fetchUser(); // Fetch user data to get current pricing
+    let timeoutId;
+    let isMounted = true;
+    
+    if (isLoaded && userId && !loading) {
+      // Debounce the API calls to prevent rapid successive calls
+      timeoutId = setTimeout(() => {
+        if (isMounted) {
+          const loadData = async () => {
+            try {
+              // Load data sequentially to prevent conflicts
+              await fetchWorkouts();
+              await fetchNutrition();
+              await fetchNutritionStats();
+            } catch (error) {
+              // Error loading initial data
+            }
+          };
+          
+          loadData();
+        }
+      }, 200); // Increased delay for better stability
     }
+    
+    return () => {
+      isMounted = false;
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [userId, isLoaded]);
+
+  // Separate effect for user data to prevent conflicts
+  useEffect(() => {
+    let timeoutId;
+    
+    if (isLoaded && userId) {
+      timeoutId = setTimeout(() => {
+        fetchUser();
+      }, 300); // Delay user fetch to prevent conflicts
+    }
+    
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+    };
   }, [userId, isLoaded, fetchUser]);
 
   // Add new progress entry
@@ -915,7 +978,6 @@ export const AppProvider = ({ children }) => {
         return { success: false, message: data.message };
       }
     } catch (err) {
-      console.error('Error toggling user ban:', err);
       setError(err.message);
       return { success: false, message: err.message };
     }
@@ -944,7 +1006,6 @@ export const AppProvider = ({ children }) => {
         setError(data.message);
       }
     } catch (err) {
-      console.error('Error fetching drills:', err);
       setError(err.message);
     } finally {
       setDrillsLoading(false);
@@ -975,7 +1036,6 @@ export const AppProvider = ({ children }) => {
         return { success: false, message: data.message };
       }
     } catch (err) {
-      console.error('Error creating drill:', err);
       setError(err.message);
       return { success: false, message: err.message };
     }
@@ -1005,7 +1065,6 @@ export const AppProvider = ({ children }) => {
         return { success: false, message: data.message };
       }
     } catch (err) {
-      console.error('Error updating drill:', err);
       setError(err.message);
       return { success: false, message: err.message };
     }
@@ -1034,7 +1093,6 @@ export const AppProvider = ({ children }) => {
         return { success: false, message: data.message };
       }
     } catch (err) {
-      console.error('Error deleting drill:', err);
       setError(err.message);
       return { success: false, message: err.message };
     }
@@ -1065,7 +1123,6 @@ export const AppProvider = ({ children }) => {
         return { success: false, message: data.message };
       }
     } catch (err) {
-      console.error('Error fetching categories:', err);
       setError(err.message);
       return { success: false, message: err.message };
     } finally {
@@ -1097,7 +1154,6 @@ export const AppProvider = ({ children }) => {
         return { success: false, message: data.message };
       }
     } catch (err) {
-      console.error('Error creating category:', err);
       setError(err.message);
       return { success: false, message: err.message };
     }
@@ -1127,7 +1183,6 @@ export const AppProvider = ({ children }) => {
         return { success: false, message: data.message };
       }
     } catch (err) {
-      console.error('Error updating category:', err);
       setError(err.message);
       return { success: false, message: err.message };
     }
@@ -1156,7 +1211,6 @@ export const AppProvider = ({ children }) => {
         return { success: false, message: data.message };
       }
     } catch (err) {
-      console.error('Error deleting category:', err);
       setError(err.message);
       return { success: false, message: err.message };
     }
@@ -1165,14 +1219,9 @@ export const AppProvider = ({ children }) => {
   // Upload media to Cloudinary
   const uploadDrillMedia = async (file) => {
     try {
-      console.log('Starting upload for file:', { name: file.name, size: file.size, type: file.type });
-      
       const token = await window.Clerk.session.getToken();
       const formData = new FormData();
       formData.append('media', file);
-
-      // Log FormData contents
-      console.log('FormData created with file:', file.name);
 
       const response = await fetch(`${API_BASE}/workout-overview/drills/upload`, {
         method: 'POST',
@@ -1183,16 +1232,12 @@ export const AppProvider = ({ children }) => {
         body: formData
       });
 
-      console.log('Upload response status:', response.status);
-
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('Upload failed with status:', response.status, errorText);
         throw new Error(`Upload failed: ${response.status} ${response.statusText}`);
       }
 
       const data = await response.json();
-      console.log('Upload response data:', data);
       
       if (data.success) {
         return {
@@ -1204,13 +1249,10 @@ export const AppProvider = ({ children }) => {
           message: data.message
         };
       } else {
-        console.error('Upload failed:', data.message);
         setError(data.message);
         return { success: false, message: data.message };
       }
     } catch (err) {
-      console.error('Error uploading media:', err);
-      
       let errorMessage = 'Upload failed. Please try again.';
       if (err.message.includes('413')) {
         errorMessage = 'File too large. Please use a smaller file.';
@@ -1236,14 +1278,12 @@ export const AppProvider = ({ children }) => {
       
       if (data.success) {
         setRevenueData(data.data);
-        console.log('Revenue data loaded:', data.data);
         return { success: true, data: data.data };
       } else {
         setError(data.message);
         return { success: false, message: data.message };
       }
     } catch (err) {
-      console.error('Error fetching revenue data:', err);
       setError(err.message);
       return { success: false, message: err.message };
     } finally {
@@ -1254,7 +1294,7 @@ export const AppProvider = ({ children }) => {
   const createSubscription = async (subscriptionData) => {
     try {
       const token = await window.Clerk.session.getToken();
-      const response = await fetch(`${API_BASE}/revenue/subscription`, {
+      const response = await fetch(`${API_BASE}/revenue/subscriptions`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -1272,7 +1312,6 @@ export const AppProvider = ({ children }) => {
         return { success: false, message: data.message };
       }
     } catch (err) {
-      console.error('Error creating subscription:', err);
       setError(err.message);
       return { success: false, message: err.message };
     }
@@ -1281,7 +1320,7 @@ export const AppProvider = ({ children }) => {
   const updateSubscription = async (subscriptionId, subscriptionData) => {
     try {
       const token = await window.Clerk.session.getToken();
-      const response = await fetch(`${API_BASE}/revenue/subscription/${subscriptionId}`, {
+      const response = await fetch(`${API_BASE}/revenue/subscriptions/${subscriptionId}`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -1299,7 +1338,6 @@ export const AppProvider = ({ children }) => {
         return { success: false, message: data.message };
       }
     } catch (err) {
-      console.error('Error updating subscription:', err);
       setError(err.message);
       return { success: false, message: err.message };
     }
@@ -1308,7 +1346,7 @@ export const AppProvider = ({ children }) => {
   const deleteSubscription = async (subscriptionId) => {
     try {
       const token = await window.Clerk.session.getToken();
-      const response = await fetch(`${API_BASE}/revenue/subscription/${subscriptionId}`, {
+      const response = await fetch(`${API_BASE}/revenue/subscriptions/${subscriptionId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -1325,7 +1363,6 @@ export const AppProvider = ({ children }) => {
         return { success: false, message: data.message };
       }
     } catch (err) {
-      console.error('Error deleting subscription:', err);
       setError(err.message);
       return { success: false, message: err.message };
     }
@@ -1334,7 +1371,7 @@ export const AppProvider = ({ children }) => {
   const extendSubscription = async (subscriptionId, days = 30) => {
     try {
       const token = await window.Clerk.session.getToken();
-      const response = await fetch(`${API_BASE}/revenue/subscription/${subscriptionId}/extend`, {
+      const response = await fetch(`${API_BASE}/revenue/subscriptions/${subscriptionId}/extend`, {
         method: 'PATCH',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -1352,7 +1389,6 @@ export const AppProvider = ({ children }) => {
         return { success: false, message: data.message };
       }
     } catch (err) {
-      console.error('Error extending subscription:', err);
       setError(err.message);
       return { success: false, message: err.message };
     }
@@ -1361,7 +1397,7 @@ export const AppProvider = ({ children }) => {
   const cancelSubscription = async (subscriptionId) => {
     try {
       const token = await window.Clerk.session.getToken();
-      const response = await fetch(`${API_BASE}/revenue/subscription/${subscriptionId}/cancel`, {
+      const response = await fetch(`${API_BASE}/revenue/subscriptions/${subscriptionId}/cancel`, {
         method: 'PATCH',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -1378,7 +1414,6 @@ export const AppProvider = ({ children }) => {
         return { success: false, message: data.message };
       }
     } catch (err) {
-      console.error('Error cancelling subscription:', err);
       setError(err.message);
       return { success: false, message: err.message };
     }
@@ -1405,7 +1440,6 @@ export const AppProvider = ({ children }) => {
         return { success: false, message: data.message || 'Failed to fetch plans' };
       }
     } catch (err) {
-      console.error('Error fetching plans:', err);
       setError(err.message);
       setPlans([]);
       return { success: false, message: err.message };
@@ -1434,7 +1468,6 @@ export const AppProvider = ({ children }) => {
         return { success: false, message: data.message };
       }
     } catch (err) {
-      console.error('Error creating plan:', err);
       setError(err.message);
       return { success: false, message: err.message };
     }
@@ -1460,7 +1493,6 @@ export const AppProvider = ({ children }) => {
         return { success: false, message: data.message };
       }
     } catch (err) {
-      console.error('Error updating plan:', err);
       setError(err.message);
       return { success: false, message: err.message };
     }
@@ -1485,7 +1517,6 @@ export const AppProvider = ({ children }) => {
         return { success: false, message: data.message };
       }
     } catch (err) {
-      console.error('Error deleting plan:', err);
       setError(err.message);
       return { success: false, message: err.message };
     }
@@ -1512,7 +1543,7 @@ export const AppProvider = ({ children }) => {
         }
       }
     } catch (err) {
-      console.error('Error fetching user subscription:', err);
+      // Error fetching subscription
     } finally {
       setSubscriptionLoading(false);
     }
@@ -1582,7 +1613,6 @@ export const AppProvider = ({ children }) => {
       const data = await response.json();
       return data.success ? data.hasAccess : false;
     } catch (err) {
-      console.error('Route access check failed:', err);
       return false;
     }
   }, [API_BASE, userId]);
@@ -1671,7 +1701,87 @@ export const AppProvider = ({ children }) => {
     userSubscription,
     subscriptionTimer,
     subscriptionLoading,
-    fetchUserSubscription
+    fetchUserSubscription,
+    showExpiredModal,
+    setShowExpiredModal,
+    setExpiredModalDismissed,
+    // Check if user has active subscription
+    isSubscriptionActive: () => {
+      if (!user) return false;
+      if (user.pricing === 'starter') return true; // Starter is always active
+      return user.subscription?.isActive && 
+             (!user.subscription?.expiresAt || new Date(user.subscription.expiresAt) > new Date());
+    },
+    // PDF generation
+    generatePDFReport: async (filterPlan, filterBilling, chartFilter) => {
+      try {
+        const jsPDF = (await import('jspdf')).default;
+        const autoTable = (await import('jspdf-autotable')).default;
+        
+        const doc = new jsPDF();
+        
+        // Header
+        doc.setFontSize(20);
+        doc.setTextColor(255, 114, 34);
+        doc.text('FITNESS TRACKER - REVENUE REPORT', 20, 20);
+        
+        doc.setFontSize(10);
+        doc.setTextColor(100);
+        doc.text(`Generated: ${new Date().toLocaleString()}`, 20, 30);
+        doc.text(`Filters: Plan=${filterPlan}, Billing=${filterBilling}`, 20, 35);
+
+        // Metrics
+        doc.setFontSize(14);
+        doc.setTextColor(0);
+        doc.text('REVENUE METRICS', 20, 50);
+        
+        const metrics = [
+          ['Total Revenue', `$${revenueData?.metrics?.totalRevenue?.toLocaleString() || '0'}`],
+          ['Active Subscriptions', `${revenueData?.metrics?.activeSubscriptions || '0'}`],
+          ['Conversion Rate', `${revenueData?.metrics?.conversionRate || '0.0%'}`],
+          ['Monthly Revenue', `${revenueData?.metrics?.powerConsumption || '$0'}`]
+        ];
+
+        autoTable(doc, {
+          startY: 55,
+          head: [['Metric', 'Value']],
+          body: metrics,
+          theme: 'grid',
+          headStyles: { fillColor: [255, 114, 34] }
+        });
+
+        // Subscriptions
+        doc.setFontSize(14);
+        doc.text('ACTIVE SUBSCRIPTIONS', 20, doc.lastAutoTable.finalY + 20);
+
+        const subscriptions = (revenueData?.subscriptions || [])
+          .filter(sub => sub.role !== 'admin')
+          .filter(sub => filterPlan === 'all' || sub.planName?.toLowerCase().includes(filterPlan))
+          .filter(sub => filterBilling === 'all' || sub.billingCycle === filterBilling)
+          .map(sub => [
+            sub.userName || 'Unknown',
+            sub.planName || 'Basic',
+            sub.billingCycle || 'monthly',
+            `$${sub.amount || '0'}`,
+            new Date(sub.endDate).toLocaleDateString()
+          ]);
+
+        autoTable(doc, {
+          startY: doc.lastAutoTable.finalY + 25,
+          head: [['User', 'Plan', 'Billing', 'Revenue', 'Expires']],
+          body: subscriptions,
+          theme: 'striped',
+          headStyles: { fillColor: [255, 114, 34] }
+        });
+
+        doc.save(`fitness-tracker-revenue-${new Date().toISOString().split('T')[0]}.pdf`);
+        return { success: true };
+      } catch (error) {
+        console.error('PDF Generation Error:', error);
+        setError('Failed to generate PDF report');
+        return { success: false, message: error.message };
+      }
+    },
   };
 
   return (
@@ -1688,3 +1798,38 @@ export const useAppContext = () => {
   }
   return context;
 };
+  // Generate PDF report
+  const generatePDFReport = async (filterPlan, filterBilling, chartFilter) => {
+    try {
+      const response = await fetch(`${API_BASE}/revenue/generate-pdf`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${await window.Clerk.session.getToken()}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          filterPlan,
+          filterBilling,
+          chartFilter
+        })
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        const blob = new Blob([JSON.stringify(data.report, null, 2)], { type: 'application/json' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `revenue-report-${new Date().toISOString().split('T')[0]}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+        return { success: true };
+      }
+      return { success: false };
+    } catch (error) {
+      setError('Report generation failed');
+      return { success: false, message: error.message };
+    }
+  };

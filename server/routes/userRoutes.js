@@ -11,7 +11,8 @@ import {
     updateCurrentUserPricing,
     initializeSubscription,
     forceUpdateSubscription,
-    getSubscriptionTimer
+    getSubscriptionTimer,
+    getSubscriptionDetails
 } from '../controllers/userController.js';
 
 const router = express.Router();
@@ -21,6 +22,9 @@ router.use(protect);
 
 // Get subscription timer
 router.get('/me/timer', getSubscriptionTimer);
+
+// Get subscription details with pricing
+router.get('/me/subscription-details', getSubscriptionDetails);
 
 // Force update subscription
 router.post('/me/force-subscription', forceUpdateSubscription);

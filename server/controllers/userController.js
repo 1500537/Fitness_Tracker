@@ -16,6 +16,7 @@ export const getSubscriptionTimer = async (req, res) => {
         let timerData = {
             planName: user.pricing || 'starter',
             billingCycle: subscription?.billingCycle || 'monthly',
+            price: subscription?.price || 0,
             isActive: subscription?.isActive || false,
             timeLeft: 0,
             status: 'expired'
@@ -35,14 +36,11 @@ export const getSubscriptionTimer = async (req, res) => {
             timerData.status = 'unlimited';
         }
         
-        console.log(`🕰️ Timer data for user ${userId}:`, timerData);
-        
         res.json({
             success: true,
             timer: timerData
         });
     } catch (error) {
-        console.error('❌ Error getting timer data:', error);
         res.json({
             success: false,
             message: error.message
@@ -60,15 +58,13 @@ export const forceUpdateSubscription = async (req, res) => {
         const expiresAt = new Date(now);
         expiresAt.setDate(now.getDate() + 30); // 30 days from now
         
-        console.log(`🔄 Force updating subscription for user ${userId}`);
-        console.log(`📅 Setting expiration to: ${expiresAt}`);
-        
         const updatedUser = await User.findByIdAndUpdate(
             userId,
             {
                 $set: {
                     'subscription.planName': req.user.pricing || 'starter',
                     'subscription.billingCycle': 'monthly',
+                    'subscription.price': 0,
                     'subscription.startDate': now,
                     'subscription.expiresAt': expiresAt,
                     'subscription.isActive': true
@@ -77,15 +73,12 @@ export const forceUpdateSubscription = async (req, res) => {
             { new: true }
         );
         
-        console.log(`✅ Subscription updated:`, updatedUser.subscription);
-        
         res.json({
             success: true,
             message: 'Subscription updated successfully',
             user: updatedUser
         });
     } catch (error) {
-        console.error('❌ Error updating subscription:', error);
         res.json({
             success: false,
             message: error.message
@@ -119,6 +112,7 @@ export const initializeSubscription = async (req, res) => {
                 subscription: {
                     planName: user.pricing || 'starter',
                     billingCycle: 'monthly',
+                    price: 0,
                     startDate: now,
                     expiresAt: expiresAt,
                     isActive: true
@@ -127,15 +121,12 @@ export const initializeSubscription = async (req, res) => {
             { new: true }
         );
         
-        console.log(`✅ Subscription initialized for user ${userId}:`, updatedUser.subscription);
-        
         res.json({
             success: true,
             message: 'Subscription initialized',
             subscription: updatedUser.subscription
         });
     } catch (error) {
-        console.error('❌ Error initializing subscription:', error);
         res.json({
             success: false,
             message: error.message
@@ -149,17 +140,19 @@ export const updateCurrentUserPricing = async (req, res) => {
         const { pricing } = req.body;
         const userId = req.user._id;
         
-        console.log(`🔄 Updating user ${userId} pricing to: ${pricing}`);
-        
         // Calculate expiration date for testing (30 days for monthly, 365 for annual)
         const now = new Date();
         const expiresAt = new Date(now);
+        let price = 0;
         if (pricing === 'pro') {
             expiresAt.setDate(now.getDate() + 30); // 30 days
+            price = 29; // Default monthly price for pro
         } else if (pricing === 'elite') {
             expiresAt.setDate(now.getDate() + 365); // 365 days
+            price = 59; // Default monthly price for elite
         } else {
             expiresAt.setDate(now.getDate() + 7); // 7 days for starter
+            price = 0;
         }
         
         const updatedUser = await User.findByIdAndUpdate(
@@ -169,6 +162,7 @@ export const updateCurrentUserPricing = async (req, res) => {
                 subscription: {
                     planName: pricing,
                     billingCycle: 'monthly',
+                    price: price,
                     startDate: now,
                     expiresAt: expiresAt,
                     isActive: true
@@ -178,8 +172,6 @@ export const updateCurrentUserPricing = async (req, res) => {
         );
         
         if (updatedUser) {
-            console.log(`✅ User pricing updated successfully:`, updatedUser.pricing);
-            console.log(`📅 Subscription expires at:`, updatedUser.subscription.expiresAt);
             res.json({
                 success: true,
                 message: 'Pricing updated successfully',
@@ -196,7 +188,6 @@ export const updateCurrentUserPricing = async (req, res) => {
             });
         }
     } catch (error) {
-        console.error('❌ Error updating pricing:', error);
         res.json({
             success: false,
             message: error.message
@@ -209,6 +200,24 @@ export const getCurrentUser = async (req, res) => {
     try {
         const user = req.user;
         
+        // Check if subscription is expired
+        const now = new Date();
+        let subscriptionStatus = 'active';
+        let isActive = user.subscription?.isActive || false;
+        
+        if (user.subscription?.expiresAt) {
+            const expiryTime = new Date(user.subscription.expiresAt);
+            if (now > expiryTime) {
+                subscriptionStatus = 'expired';
+                isActive = false;
+                
+                // Update user subscription status in database
+                await User.findByIdAndUpdate(user._id, {
+                    'subscription.isActive': false
+                });
+            }
+        }
+        
         res.json({
             success: true,
             user: {
@@ -219,6 +228,11 @@ export const getCurrentUser = async (req, res) => {
                 pricing: user.pricing,
                 role: user.role,
                 goals: user.goals,
+                subscription: {
+                    ...user.subscription,
+                    isActive: isActive,
+                    status: subscriptionStatus
+                },
                 createdAt: user.createdAt
             }
         });
@@ -450,14 +464,60 @@ export const getUserSubscription = async (req, res) => {
         // Get subscription data from user model
         const subscription = {
             planName: user.subscription?.planName || user.pricing || 'Free Plan',
+            price: user.subscription?.price || 0,
+            billingCycle: user.subscription?.billingCycle || 'monthly',
             expiresAt: user.subscription?.expiresAt || user.trialEnd || null,
             totalTime: user.subscription?.expiresAt 
                 ? Math.floor((new Date(user.subscription.expiresAt) - (user.subscription.startDate ? new Date(user.subscription.startDate) : new Date())) / 1000)
                 : (user.trialEnd ? Math.floor((new Date(user.trialEnd) - new Date(user.trialStart || new Date())) / 1000) : 0),
             isActive: user.subscription?.isActive || (user.trialEnd ? new Date() < new Date(user.trialEnd) : false),
-            status: user.subscription?.status || 'active',
-            billingCycle: user.subscription?.billingCycle || 'monthly'
+            status: user.subscription?.status || 'active'
         };
+
+        res.json({
+            success: true,
+            subscription
+        });
+
+    } catch (error) {
+        res.json({
+            success: false,
+            message: error.message
+        });
+    }
+};
+
+// Get user subscription with pricing details
+export const getSubscriptionDetails = async (req, res) => {
+    try {
+        const userId = req.user._id;
+        const user = await User.findById(userId);
+
+        if (!user) {
+            return res.json({
+                success: false,
+                message: "User not found"
+            });
+        }
+
+        const subscription = {
+            planName: user.subscription?.planName || user.pricing || 'starter',
+            price: user.subscription?.price || 0,
+            billingCycle: user.subscription?.billingCycle || 'monthly',
+            startDate: user.subscription?.startDate || user.createdAt,
+            expiresAt: user.subscription?.expiresAt,
+            isActive: user.subscription?.isActive || false,
+            status: user.subscription?.isActive ? 'active' : 'expired'
+        };
+
+        // Calculate time remaining
+        if (subscription.expiresAt) {
+            const now = new Date();
+            const expiryTime = new Date(subscription.expiresAt);
+            const timeLeft = Math.max(0, Math.floor((expiryTime - now) / 1000));
+            subscription.timeLeft = timeLeft;
+            subscription.isActive = timeLeft > 0;
+        }
 
         res.json({
             success: true,

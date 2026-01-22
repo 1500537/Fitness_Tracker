@@ -10,6 +10,7 @@ const userSchema = mongoose.Schema({
     subscription: {
         planName: {type: String, default: "starter"},
         billingCycle: {type: String, enum: ["monthly", "annually"], default: "monthly"},
+        price: {type: Number, default: 0},
         startDate: {type: Date, default: Date.now},
         expiresAt: {
             type: Date,

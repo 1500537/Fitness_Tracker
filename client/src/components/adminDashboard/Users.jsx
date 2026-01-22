@@ -314,8 +314,8 @@ const Users = () => {
                     onChange={(e) => setModal({ ...modal, data: { ...modal.data, role: e.target.value }})}
                     className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 pl-12 text-xs font-bold text-white outline-none focus:border-[#FF7222] transition-all appearance-none cursor-pointer"
                   >
-                    <option value="user" className="bg-[#111]">Standard Athlete</option>
-                    <option value="admin" className="bg-[#111]">Gym Administrator</option>
+                    <option value="user" className="bg-[#111]">user</option>
+                    <option value="admin" className="bg-[#111]">admin</option>
                   </select>
                 </div>
               </div>

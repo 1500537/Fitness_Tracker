@@ -28,6 +28,7 @@ import TrialExpiredModal from './components/TrialExpiredModal';
 
 // Ban Alert
 import BanAlert from './components/BanAlert';
+import CustomPopUp from './components/adminDashboard/CustomPopUp';
 
 // Context
 import { AppProvider, useAppContext } from './context/useAppContext';
@@ -51,10 +52,9 @@ const PageWrapper = ({ children }) => (
 const AnimatedRoutes = () => {
   const location = useLocation();
   const { userId, isLoaded } = useAuth();
-  const { user, fetchUser, banAlert, setBanAlert, checkUserRole } = useAppContext();
+  const { user, fetchUser, banAlert, setBanAlert, checkUserRole, showExpiredModal, setShowExpiredModal, setExpiredModalDismissed } = useAppContext();
   
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
-  const [showExpiredModal, setShowExpiredModal] = useState(false);
   
   const isDashboard = location.pathname.startsWith('/dashboard');
   const isAdmin = location.pathname.startsWith('/admin');
@@ -81,7 +81,6 @@ const AnimatedRoutes = () => {
   // Check for banned user after login - multiple checks for reliability
   useEffect(() => {
     if (user && user.isBanned && !banAlert) {
-      console.log('User is banned, showing ban alert:', user);
       setBanAlert({
         message: 'Your account has been suspended',
         reason: user.banReason || 'Your account has been suspended. Please contact support.'
@@ -92,7 +91,6 @@ const AnimatedRoutes = () => {
   // Additional check when userId changes (login/logout)
   useEffect(() => {
     if (userId && isLoaded && user && user.isBanned && !banAlert) {
-      console.log('Ban check on userId change:', user.isBanned);
       setBanAlert({
         message: 'Your account has been suspended',
         reason: user.banReason || 'Your account has been suspended. Please contact support.'
@@ -103,6 +101,10 @@ const AnimatedRoutes = () => {
   // Check trial status - exclude admin users
   useEffect(() => {
     if (user && user.pricing === 'starter' && userId) {
+      // Reset expired modal dismissed when navigating to dashboard
+      if (location.pathname.startsWith('/dashboard')) {
+        setExpiredModalDismissed(false);
+      }
       // Don't show trial modals for admin users
       if (user.role === 'admin' || user.role === 'owner') {
         return;
@@ -214,12 +216,6 @@ const AnimatedRoutes = () => {
         <TrialWelcomeModal 
           user={user} 
           onClose={() => setShowWelcomeModal(false)} 
-        />
-      )}
-      {showExpiredModal && (
-        <TrialExpiredModal 
-          user={user} 
-          onClose={() => setShowExpiredModal(false)} 
         />
       )}
 

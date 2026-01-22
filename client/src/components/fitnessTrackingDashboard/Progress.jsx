@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, Radar, RadarChart, PolarGrid, PolarAngleAxis, CartesianGrid, ReferenceLine, BarChart, Bar, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
 import { Lock, Crown, Star, Edit, Trash2, Activity, Utensils, TrendingUp, Calendar, Target, Zap, BarChart3, PieChart as PieChartIcon, ChevronDown, ChevronUp } from 'lucide-react';
@@ -93,10 +93,12 @@ const ProgressModule = () => {
   // --- NEW ANALYTICS STATE ---
   const [showAnalytics, setShowAnalytics] = useState(false);
   const [analyticsType, setAnalyticsType] = useState('workout'); // 'workout' or 'nutrition'
-  const [workoutAnalytics, setWorkoutAnalytics] = useState([]);
-  const [nutritionAnalytics, setNutritionAnalytics] = useState([]);
+  const [workoutAnalytics, setWorkoutAnalytics] = useState(null);
+  const [nutritionAnalytics, setNutritionAnalytics] = useState(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [showAllEntries, setShowAllEntries] = useState(false);
+  const [lastProcessedWorkouts, setLastProcessedWorkouts] = useState(null);
+  const [lastProcessedNutrition, setLastProcessedNutrition] = useState(null);
   // Enhanced Real-time Custom Tooltip
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
@@ -175,9 +177,28 @@ const ProgressModule = () => {
     return null;
   };
 
-  // --- ANALYTICS MODAL COMPONENT ---
-  const AnalyticsModal = () => {
+  // --- OPTIMIZED ANALYTICS MODAL COMPONENT ---
+  const AnalyticsModal = useMemo(() => {
+    if (!showAnalytics) return null;
+    
     const currentAnalytics = analyticsType === 'workout' ? workoutAnalytics : nutritionAnalytics;
+    
+    // Show loading state while processing
+    if (analyticsLoading || !currentAnalytics) {
+      return (
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-xl p-4"
+          onClick={() => setShowAnalytics(false)}
+        >
+          <div className="bg-gradient-to-br from-gray-900 via-black to-gray-900 rounded-[3rem] p-16 border-2 border-[#FF7222]/30">
+            <NeuralSyncLoader />
+          </div>
+        </motion.div>
+      );
+    }
     
     return (
       <motion.div 
@@ -188,37 +209,37 @@ const ProgressModule = () => {
         onClick={() => setShowAnalytics(false)}
       >
         <motion.div 
-          initial={{ scale: 0.8, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
           exit={{ scale: 0.8, opacity: 0 }}
-          className="bg-gradient-to-br from-gray-900 via-black to-gray-900 rounded-[3rem] p-8 max-w-6xl w-full max-h-[90vh] overflow-y-auto border-2 border-[#FF7222]/30 shadow-[0_0_100px_rgba(255,114,34,0.3)]"
+          className="bg-gradient-to-br from-gray-900 via-black to-gray-900 rounded-2xl sm:rounded-[3rem] p-4 sm:p-8 w-full max-w-[95vw] sm:max-w-6xl max-h-[95vh] overflow-y-auto border-2 border-[#FF7222]/30 shadow-[0_0_100px_rgba(255,114,34,0.3)]"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
-          <div className="flex items-center justify-between mb-8">
-            <div className="flex items-center gap-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 sm:mb-8 gap-4">
+            <div className="flex items-center gap-3 sm:gap-4">
               {analyticsType === 'workout' ? (
-                <Activity className="w-8 h-8 text-[#FF7222]" />
+                <Activity className="w-6 h-6 sm:w-8 sm:h-8 text-[#FF7222]" />
               ) : (
-                <Utensils className="w-8 h-8 text-[#10B981]" />
+                <Utensils className="w-6 h-6 sm:w-8 sm:h-8 text-[#10B981]" />
               )}
               <div>
-                <h2 className="text-3xl font-black text-white uppercase tracking-wider">
+                <h2 className="text-xl sm:text-3xl font-black text-white uppercase tracking-wider">
                   {analyticsType === 'workout' ? 'Workout Analytics' : 'Nutrition Analytics'}
                 </h2>
-                <p className="text-gray-400 font-bold">Real-time data analysis</p>
+                <p className="text-gray-400 font-bold text-sm">Real-time data analysis</p>
               </div>
             </div>
             <button 
               onClick={() => setShowAnalytics(false)}
-              className="w-12 h-12 rounded-full bg-red-500/20 border-2 border-red-500/50 text-red-400 hover:bg-red-500/30 transition-all flex items-center justify-center"
+              className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-red-500/20 border-2 border-red-500/50 text-red-400 hover:bg-red-500/30 transition-all flex items-center justify-center"
             >
               ✕
             </button>
           </div>
 
           {/* Analytics Content */}
-          {analyticsType === 'workout' && workoutAnalytics.categoryChart && (
+          {analyticsType === 'workout' && workoutAnalytics?.categoryChart && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               {/* Category Distribution */}
               <div className="bg-gradient-to-br from-[#FF7222]/10 to-transparent rounded-3xl p-6 border border-[#FF7222]/20">
@@ -236,12 +257,25 @@ const ProgressModule = () => {
                       fill="#FF7222"
                       dataKey="value"
                       label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                      animationBegin={0}
+                      animationDuration={1200}
                     >
                       {workoutAnalytics.categoryChart.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={['#FF7222', '#10B981', '#3B82F6', '#F59E0B', '#8B5CF6'][index % 5]} />
                       ))}
                     </Pie>
-                    <Tooltip />
+                    <Tooltip 
+                      contentStyle={{
+                        backgroundColor: 'rgba(17, 17, 17, 0.95)',
+                        border: '2px solid #FF7222',
+                        borderRadius: '20px',
+                        color: 'white',
+                        boxShadow: '0 20px 60px rgba(255, 114, 34, 0.4)',
+                        backdropFilter: 'blur(20px)'
+                      }}
+                      labelStyle={{ color: '#FF7222', fontWeight: 'bold' }}
+                      itemStyle={{ color: 'white', fontWeight: 'bold' }}
+                    />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
@@ -253,12 +287,36 @@ const ProgressModule = () => {
                   <h3 className="text-xl font-black text-white uppercase">Weekly Volume</h3>
                 </div>
                 <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={workoutAnalytics.weeklyChart}>
+                  <BarChart data={workoutAnalytics.weeklyChart} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                    <XAxis dataKey="week" stroke="#9CA3AF" />
-                    <YAxis stroke="#9CA3AF" />
-                    <Tooltip content={<CustomTooltip />} />
-                    <Bar dataKey="volume" fill="#10B981" radius={[8, 8, 0, 0]} />
+                    <XAxis 
+                      dataKey="week" 
+                      stroke="#9CA3AF" 
+                      tick={{ fill: '#9CA3AF', fontSize: 12, fontWeight: 'bold' }}
+                    />
+                    <YAxis 
+                      stroke="#9CA3AF" 
+                      tick={{ fill: '#9CA3AF', fontSize: 12, fontWeight: 'bold' }}
+                    />
+                    <Tooltip 
+                      contentStyle={{
+                        backgroundColor: 'rgba(17, 17, 17, 0.95)',
+                        border: '2px solid #10B981',
+                        borderRadius: '20px',
+                        color: 'white',
+                        boxShadow: '0 20px 60px rgba(16, 185, 129, 0.4)',
+                        backdropFilter: 'blur(20px)'
+                      }}
+                      labelStyle={{ color: '#10B981', fontWeight: 'bold' }}
+                      itemStyle={{ color: 'white', fontWeight: 'bold' }}
+                    />
+                    <Bar 
+                      dataKey="volume" 
+                      fill="#10B981" 
+                      radius={[8, 8, 0, 0]}
+                      animationBegin={200}
+                      animationDuration={1000}
+                    />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -270,52 +328,117 @@ const ProgressModule = () => {
                   <h3 className="text-xl font-black text-white uppercase">Bench Press Progress</h3>
                 </div>
                 <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={workoutAnalytics.strengthChart}>
+                  <LineChart data={workoutAnalytics.strengthChart} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                    <XAxis dataKey="date" stroke="#9CA3AF" />
-                    <YAxis stroke="#9CA3AF" />
-                    <Tooltip content={<CustomTooltip />} />
-                    <Line type="monotone" dataKey="weight" stroke="#3B82F6" strokeWidth={3} dot={{ fill: '#3B82F6', strokeWidth: 2, r: 6 }} />
+                    <XAxis 
+                      dataKey="date" 
+                      stroke="#9CA3AF" 
+                      tick={{ fill: '#9CA3AF', fontSize: 12, fontWeight: 'bold' }}
+                    />
+                    <YAxis 
+                      stroke="#9CA3AF" 
+                      tick={{ fill: '#9CA3AF', fontSize: 12, fontWeight: 'bold' }}
+                    />
+                    <Tooltip 
+                      contentStyle={{
+                        backgroundColor: 'rgba(17, 17, 17, 0.95)',
+                        border: '2px solid #3B82F6',
+                        borderRadius: '20px',
+                        color: 'white',
+                        boxShadow: '0 20px 60px rgba(59, 130, 246, 0.4)',
+                        backdropFilter: 'blur(20px)'
+                      }}
+                      labelStyle={{ color: '#3B82F6', fontWeight: 'bold' }}
+                      itemStyle={{ color: 'white', fontWeight: 'bold' }}
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="weight" 
+                      stroke="#3B82F6" 
+                      strokeWidth={4} 
+                      dot={{ fill: '#3B82F6', strokeWidth: 2, r: 6 }}
+                      activeDot={{ r: 8, fill: '#3B82F6', stroke: '#000', strokeWidth: 2 }}
+                      animationBegin={400}
+                      animationDuration={1500}
+                    />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
 
-              {/* Stats Cards */}
+              {/* Real-time Stats Cards */}
               <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-gradient-to-br from-[#FF7222]/20 to-transparent rounded-2xl p-6 border border-[#FF7222]/30">
+                <motion.div 
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.6 }}
+                  className="bg-gradient-to-br from-[#FF7222]/20 to-transparent rounded-2xl p-6 border border-[#FF7222]/30 hover:border-[#FF7222]/60 transition-all"
+                >
                   <div className="flex items-center gap-3">
                     <Target className="w-8 h-8 text-[#FF7222]" />
                     <div>
                       <p className="text-gray-400 font-bold uppercase text-sm">Total Workouts</p>
-                      <p className="text-white font-black text-3xl">{workoutAnalytics.totalWorkouts}</p>
+                      <motion.p 
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        transition={{ delay: 0.8, type: "spring" }}
+                        className="text-white font-black text-3xl"
+                      >
+                        {workoutAnalytics.totalWorkouts}
+                      </motion.p>
                     </div>
                   </div>
-                </div>
-                <div className="bg-gradient-to-br from-[#10B981]/20 to-transparent rounded-2xl p-6 border border-[#10B981]/30">
+                </motion.div>
+                
+                <motion.div 
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.7 }}
+                  className="bg-gradient-to-br from-[#10B981]/20 to-transparent rounded-2xl p-6 border border-[#10B981]/30 hover:border-[#10B981]/60 transition-all"
+                >
                   <div className="flex items-center gap-3">
                     <Zap className="w-8 h-8 text-[#10B981]" />
                     <div>
                       <p className="text-gray-400 font-bold uppercase text-sm">Total Volume</p>
-                      <p className="text-white font-black text-3xl">{Math.round(workoutAnalytics.totalVolume).toLocaleString()}</p>
+                      <motion.p 
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        transition={{ delay: 0.9, type: "spring" }}
+                        className="text-white font-black text-3xl"
+                      >
+                        {Math.round(workoutAnalytics.totalVolume).toLocaleString()}
+                      </motion.p>
                       <p className="text-gray-500 text-sm">kg lifted</p>
                     </div>
                   </div>
-                </div>
-                <div className="bg-gradient-to-br from-[#3B82F6]/20 to-transparent rounded-2xl p-6 border border-[#3B82F6]/30">
+                </motion.div>
+                
+                <motion.div 
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.8 }}
+                  className="bg-gradient-to-br from-[#3B82F6]/20 to-transparent rounded-2xl p-6 border border-[#3B82F6]/30 hover:border-[#3B82F6]/60 transition-all"
+                >
                   <div className="flex items-center gap-3">
                     <Calendar className="w-8 h-8 text-[#3B82F6]" />
                     <div>
                       <p className="text-gray-400 font-bold uppercase text-sm">Avg/Week</p>
-                      <p className="text-white font-black text-3xl">{Math.round(workoutAnalytics.avgWorkoutsPerWeek)}</p>
+                      <motion.p 
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        transition={{ delay: 1.0, type: "spring" }}
+                        className="text-white font-black text-3xl"
+                      >
+                        {Math.round(workoutAnalytics.avgWorkoutsPerWeek)}
+                      </motion.p>
                       <p className="text-gray-500 text-sm">workouts</p>
                     </div>
                   </div>
-                </div>
+                </motion.div>
               </div>
             </div>
           )}
 
-          {analyticsType === 'nutrition' && nutritionAnalytics.dailyChart && (
+          {analyticsType === 'nutrition' && nutritionAnalytics?.dailyChart && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               {/* Daily Calories */}
               <div className="bg-gradient-to-br from-[#10B981]/10 to-transparent rounded-3xl p-6 border border-[#10B981]/20">
@@ -324,12 +447,46 @@ const ProgressModule = () => {
                   <h3 className="text-xl font-black text-white uppercase">Daily Calories</h3>
                 </div>
                 <ResponsiveContainer width="100%" height={300}>
-                  <AreaChart data={nutritionAnalytics.dailyChart}>
+                  <AreaChart data={nutritionAnalytics.dailyChart} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                    <defs>
+                      <linearGradient id="caloriesGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#10B981" stopOpacity={0.8}/>
+                        <stop offset="95%" stopColor="#10B981" stopOpacity={0.1}/>
+                      </linearGradient>
+                    </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                    <XAxis dataKey="date" stroke="#9CA3AF" />
-                    <YAxis stroke="#9CA3AF" />
-                    <Tooltip content={<CustomTooltip />} />
-                    <Area type="monotone" dataKey="calories" stroke="#10B981" fill="#10B981" fillOpacity={0.3} />
+                    <XAxis 
+                      dataKey="date" 
+                      stroke="#9CA3AF" 
+                      tick={{ fill: '#9CA3AF', fontSize: 12, fontWeight: 'bold' }}
+                    />
+                    <YAxis 
+                      stroke="#9CA3AF" 
+                      tick={{ fill: '#9CA3AF', fontSize: 12, fontWeight: 'bold' }}
+                    />
+                    <Tooltip 
+                      contentStyle={{
+                        backgroundColor: 'rgba(17, 17, 17, 0.95)',
+                        border: '2px solid #10B981',
+                        borderRadius: '20px',
+                        color: 'white',
+                        boxShadow: '0 20px 60px rgba(16, 185, 129, 0.4)',
+                        backdropFilter: 'blur(20px)'
+                      }}
+                      labelStyle={{ color: '#10B981', fontWeight: 'bold' }}
+                      itemStyle={{ color: 'white', fontWeight: 'bold' }}
+                    />
+                    <Area 
+                      type="monotone" 
+                      dataKey="calories" 
+                      stroke="#10B981" 
+                      strokeWidth={3}
+                      fill="url(#caloriesGradient)"
+                      dot={{ fill: '#10B981', strokeWidth: 2, r: 5 }}
+                      activeDot={{ r: 7, fill: '#10B981', stroke: '#000', strokeWidth: 2 }}
+                      animationBegin={0}
+                      animationDuration={1200}
+                    />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
@@ -349,12 +506,25 @@ const ProgressModule = () => {
                       outerRadius={100}
                       dataKey="value"
                       label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                      animationBegin={200}
+                      animationDuration={1000}
                     >
                       {nutritionAnalytics.macroChart.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={entry.color} />
                       ))}
                     </Pie>
-                    <Tooltip />
+                    <Tooltip 
+                      contentStyle={{
+                        backgroundColor: 'rgba(17, 17, 17, 0.95)',
+                        border: '2px solid #F59E0B',
+                        borderRadius: '20px',
+                        color: 'white',
+                        boxShadow: '0 20px 60px rgba(245, 158, 11, 0.4)',
+                        backdropFilter: 'blur(20px)'
+                      }}
+                      labelStyle={{ color: '#F59E0B', fontWeight: 'bold' }}
+                      itemStyle={{ color: 'white', fontWeight: 'bold' }}
+                    />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
@@ -366,73 +536,144 @@ const ProgressModule = () => {
                   <h3 className="text-xl font-black text-white uppercase">Meal Distribution</h3>
                 </div>
                 <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={nutritionAnalytics.mealChart}>
+                  <BarChart data={nutritionAnalytics.mealChart} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                    <XAxis dataKey="name" stroke="#9CA3AF" />
-                    <YAxis stroke="#9CA3AF" />
-                    <Tooltip content={<CustomTooltip />} />
-                    <Bar dataKey="value" fill="#8B5CF6" radius={[8, 8, 0, 0]} />
+                    <XAxis 
+                      dataKey="name" 
+                      stroke="#9CA3AF" 
+                      tick={{ fill: '#9CA3AF', fontSize: 12, fontWeight: 'bold' }}
+                    />
+                    <YAxis 
+                      stroke="#9CA3AF" 
+                      tick={{ fill: '#9CA3AF', fontSize: 12, fontWeight: 'bold' }}
+                    />
+                    <Tooltip 
+                      contentStyle={{
+                        backgroundColor: 'rgba(17, 17, 17, 0.95)',
+                        border: '2px solid #8B5CF6',
+                        borderRadius: '20px',
+                        color: 'white',
+                        boxShadow: '0 20px 60px rgba(139, 92, 246, 0.4)',
+                        backdropFilter: 'blur(20px)'
+                      }}
+                      labelStyle={{ color: '#8B5CF6', fontWeight: 'bold' }}
+                      itemStyle={{ color: 'white', fontWeight: 'bold' }}
+                    />
+                    <Bar 
+                      dataKey="value" 
+                      fill="#8B5CF6" 
+                      radius={[8, 8, 0, 0]}
+                      animationBegin={400}
+                      animationDuration={1200}
+                    />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
 
-              {/* Nutrition Stats */}
+              {/* Real-time Nutrition Stats */}
               <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-gradient-to-br from-[#10B981]/20 to-transparent rounded-2xl p-6 border border-[#10B981]/30">
+                <motion.div 
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.6 }}
+                  className="bg-gradient-to-br from-[#10B981]/20 to-transparent rounded-2xl p-6 border border-[#10B981]/30 hover:border-[#10B981]/60 transition-all"
+                >
                   <div className="flex items-center gap-3">
                     <Zap className="w-8 h-8 text-[#10B981]" />
                     <div>
                       <p className="text-gray-400 font-bold uppercase text-sm">Total Calories</p>
-                      <p className="text-white font-black text-3xl">{Math.round(nutritionAnalytics.totalCalories).toLocaleString()}</p>
+                      <motion.p 
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        transition={{ delay: 0.8, type: "spring" }}
+                        className="text-white font-black text-3xl"
+                      >
+                        {Math.round(nutritionAnalytics.totalCalories).toLocaleString()}
+                      </motion.p>
                     </div>
                   </div>
-                </div>
-                <div className="bg-gradient-to-br from-[#F59E0B]/20 to-transparent rounded-2xl p-6 border border-[#F59E0B]/30">
+                </motion.div>
+                
+                <motion.div 
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.7 }}
+                  className="bg-gradient-to-br from-[#F59E0B]/20 to-transparent rounded-2xl p-6 border border-[#F59E0B]/30 hover:border-[#F59E0B]/60 transition-all"
+                >
                   <div className="flex items-center gap-3">
                     <Target className="w-8 h-8 text-[#F59E0B]" />
                     <div>
                       <p className="text-gray-400 font-bold uppercase text-sm">Avg Daily</p>
-                      <p className="text-white font-black text-3xl">{Math.round(nutritionAnalytics.avgDailyCalories)}</p>
+                      <motion.p 
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        transition={{ delay: 0.9, type: "spring" }}
+                        className="text-white font-black text-3xl"
+                      >
+                        {Math.round(nutritionAnalytics.avgDailyCalories)}
+                      </motion.p>
                       <p className="text-gray-500 text-sm">calories</p>
                     </div>
                   </div>
-                </div>
-                <div className="bg-gradient-to-br from-[#8B5CF6]/20 to-transparent rounded-2xl p-6 border border-[#8B5CF6]/30">
+                </motion.div>
+                
+                <motion.div 
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.8 }}
+                  className="bg-gradient-to-br from-[#8B5CF6]/20 to-transparent rounded-2xl p-6 border border-[#8B5CF6]/30 hover:border-[#8B5CF6]/60 transition-all"
+                >
                   <div className="flex items-center gap-3">
                     <Utensils className="w-8 h-8 text-[#8B5CF6]" />
                     <div>
                       <p className="text-gray-400 font-bold uppercase text-sm">Total Meals</p>
-                      <p className="text-white font-black text-3xl">{nutritionAnalytics.totalMeals}</p>
+                      <motion.p 
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        transition={{ delay: 1.0, type: "spring" }}
+                        className="text-white font-black text-3xl"
+                      >
+                        {nutritionAnalytics.totalMeals}
+                      </motion.p>
                     </div>
                   </div>
-                </div>
+                </motion.div>
               </div>
             </div>
           )}
         </motion.div>
       </motion.div>
     );
-  };
+  }, [showAnalytics, analyticsType, workoutAnalytics, nutritionAnalytics, analyticsLoading]);
 
+  // Memoized initial data fetch
   useEffect(() => {
-    fetchProgress();
-    fetchGoals();
-    fetchWorkouts();
-    fetchNutrition();
-    fetchNutritionStats();
+    let isMounted = true;
+    
+    const initializeData = async () => {
+      if (isMounted) {
+        await Promise.all([
+          fetchProgress(),
+          fetchGoals()
+        ]);
+      }
+    };
+    
+    initializeData();
+    
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
-  // --- ANALYTICS DATA PROCESSING ---
-  useEffect(() => {
-    if (workouts.length > 0) {
-      processWorkoutAnalytics();
-    }
-    if (nutrition.length > 0) {
-      processNutritionAnalytics();
-    }
-  }, [workouts, nutrition]);
-
-  const processWorkoutAnalytics = () => {
+  // --- OPTIMIZED ANALYTICS DATA PROCESSING ---
+  const processWorkoutAnalytics = useCallback(() => {
+    if (!workouts || workouts.length === 0) return null;
+    
+    // Check if data has changed to prevent unnecessary processing
+    const workoutsHash = JSON.stringify(workouts.map(w => ({ id: w._id, category: w.category, sets: w.sets, reps: w.reps, weight: w.weight, name: w.name, createdAt: w.createdAt })));
+    if (workoutsHash === lastProcessedWorkouts) return workoutAnalytics;
+    
     const categoryData = {};
     const weeklyData = {};
     const strengthProgress = [];
@@ -471,10 +712,18 @@ const ProgressModule = () => {
       avgWorkoutsPerWeek: Object.values(weeklyData).reduce((sum, week) => sum + week.workouts, 0) / Object.keys(weeklyData).length || 0
     };
     
+    setLastProcessedWorkouts(workoutsHash);
     setWorkoutAnalytics(analytics);
-  };
+    return analytics;
+  }, [workouts, lastProcessedWorkouts, workoutAnalytics]);
 
-  const processNutritionAnalytics = () => {
+  const processNutritionAnalytics = useCallback(() => {
+    if (!nutrition || nutrition.length === 0) return null;
+    
+    // Check if data has changed to prevent unnecessary processing
+    const nutritionHash = JSON.stringify(nutrition.map(n => ({ id: n._id, calories: n.calories, protein: n.protein, carbs: n.carbs, fats: n.fats, type: n.type, date: n.date })));
+    if (nutritionHash === lastProcessedNutrition) return nutritionAnalytics;
+    
     const dailyCalories = {};
     const macroDistribution = { protein: 0, carbs: 0, fats: 0 };
     const mealTypeData = {};
@@ -513,8 +762,33 @@ const ProgressModule = () => {
       totalMeals: nutrition.length
     };
     
+    setLastProcessedNutrition(nutritionHash);
     setNutritionAnalytics(analytics);
-  };
+    return analytics;
+  }, [nutrition, nutritionStats, lastProcessedNutrition, nutritionAnalytics]);
+
+  // Memoized analytics processing
+  useEffect(() => {
+    let timeoutId;
+    
+    const processAnalytics = () => {
+      if (workouts && workouts.length > 0) {
+        processWorkoutAnalytics();
+      }
+      if (nutrition && nutrition.length > 0) {
+        processNutritionAnalytics();
+      }
+    };
+    
+    // Debounce analytics processing to prevent excessive re-renders
+    timeoutId = setTimeout(processAnalytics, 300);
+    
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [workouts, nutrition, processWorkoutAnalytics, processNutritionAnalytics]);
+
+
 
   useEffect(() => {
     // Convert progress to history format with proper error handling
@@ -750,7 +1024,6 @@ const ProgressModule = () => {
 
   // Edit progress entry
   const editProgressEntry = async (entry) => {
-    console.log('✏️ Editing progress entry:', entry);
     setEditingEntry(entry);
     setForm({
       weight: entry.weight.toString(),
@@ -766,7 +1039,6 @@ const ProgressModule = () => {
   const updateProgress = async () => {
     if (!editingEntry || !validateForm()) return;
 
-    console.log('🔄 Updating progress entry:', editingEntry.id);
     const progressData = {
       weight: parseFloat(form.weight),
       bench: parseFloat(form.bench),
@@ -778,28 +1050,19 @@ const ProgressModule = () => {
 
     const result = await updateProgressEntry(editingEntry.id, progressData);
     if (result) {
-      console.log('✅ Progress updated successfully');
       setEditingEntry(null);
       setForm({ weight: '', bench: '', run: '', waist: '', neck: '', height: '175' });
       setValidationErrors({});
-      // Refresh progress data
       fetchProgress();
-    } else {
-      console.error('❌ Failed to update progress');
     }
   };
 
   // Delete progress entry
   const deleteProgress = async (id) => {
-    console.log('🗑️ Deleting progress entry:', id);
     const result = await deleteProgressEntry(id);
     if (result) {
-      console.log('✅ Progress deleted successfully');
       setShowDeleteConfirm(null);
-      // Refresh progress data
       fetchProgress();
-    } else {
-      console.error('❌ Failed to delete progress');
     }
   };
 
@@ -856,50 +1119,61 @@ const ProgressModule = () => {
 
       {/* --- ANALYTICS BUTTONS SECTION --- */}
       <PricingLock tier="pro" feature="Advanced Analytics Dashboard with Real-time Workout & Nutrition Insights">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
           {/* Workout Analytics Button */}
           <motion.div 
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
-            onClick={() => { setAnalyticsType('workout'); setShowAnalytics(true); }}
-            className="bg-gradient-to-br from-[#FF7222]/20 via-[#FF7222]/10 to-transparent border-2 border-[#FF7222]/30 rounded-[3rem] p-8 cursor-pointer hover:border-[#FF7222]/60 transition-all group relative overflow-hidden"
+            onClick={() => { 
+              if (analyticsLoading) return;
+              setAnalyticsLoading(true);
+              setAnalyticsType('workout'); 
+              setShowAnalytics(true);
+              setTimeout(() => {
+                if (!workoutAnalytics && workouts?.length > 0) {
+                  processWorkoutAnalytics();
+                }
+                setAnalyticsLoading(false);
+              }, 800);
+            }}
+            className={`bg-gradient-to-br from-[#FF7222]/20 via-[#FF7222]/10 to-transparent border-2 border-[#FF7222]/30 rounded-2xl sm:rounded-[3rem] p-4 sm:p-8 cursor-pointer hover:border-[#FF7222]/60 transition-all group relative overflow-hidden ${analyticsLoading ? 'opacity-50 pointer-events-none' : ''}`}
           >
-            <div className="absolute top-4 right-4 opacity-20 group-hover:opacity-40 transition-opacity">
-              <Activity size={64} className="text-[#FF7222]" />
+            <div className="absolute top-2 right-2 sm:top-4 sm:right-4 opacity-20 group-hover:opacity-40 transition-opacity">
+              <Activity size={32} className="text-[#FF7222] sm:w-16 sm:h-16" />
             </div>
             
             <div className="relative z-10">
-              <div className="flex items-center gap-4 mb-6">
-                <div className="p-4 bg-[#FF7222]/20 rounded-2xl border border-[#FF7222]/30">
-                  <Activity className="w-8 h-8 text-[#FF7222]" />
+              <div className="flex items-center gap-2 sm:gap-4 mb-4 sm:mb-6">
+                <div className="p-2 sm:p-4 bg-[#FF7222]/20 rounded-xl sm:rounded-2xl border border-[#FF7222]/30">
+                  <Activity className="w-4 h-4 sm:w-8 sm:h-8 text-[#FF7222]" />
                 </div>
                 <div>
-                  <h3 className="text-2xl font-black text-white uppercase tracking-wider">Workout Analytics</h3>
-                  <p className="text-gray-400 font-bold text-sm">Click for real-time analysis</p>
+                  <h3 className="text-lg sm:text-2xl font-black text-white uppercase tracking-wider">Workout Analytics</h3>
+                  <p className="text-gray-400 font-bold text-xs sm:text-sm">Click for real-time analysis</p>
                 </div>
               </div>
               
-              <div className="grid grid-cols-3 gap-4">
-                <div className="bg-black/30 rounded-2xl p-4 text-center">
-                  <p className="text-[#FF7222] font-black text-2xl">{workouts.length}</p>
-                  <p className="text-gray-400 text-xs uppercase font-bold">Total Workouts</p>
+              <div className="grid grid-cols-3 gap-2 sm:gap-4">
+                <div className="bg-black/30 rounded-xl sm:rounded-2xl p-2 sm:p-4 text-center">
+                  <p className="text-[#FF7222] font-black text-lg sm:text-2xl">{workouts.length}</p>
+                  <p className="text-gray-400 text-[10px] sm:text-xs uppercase font-bold">Total Workouts</p>
                 </div>
-                <div className="bg-black/30 rounded-2xl p-4 text-center">
-                  <p className="text-[#10B981] font-black text-2xl">{workouts.filter(w => w.category === 'CHEST').length}</p>
-                  <p className="text-gray-400 text-xs uppercase font-bold">Chest Sessions</p>
+                <div className="bg-black/30 rounded-xl sm:rounded-2xl p-2 sm:p-4 text-center">
+                  <p className="text-[#10B981] font-black text-lg sm:text-2xl">{workouts.filter(w => w.category === 'CHEST').length}</p>
+                  <p className="text-gray-400 text-[10px] sm:text-xs uppercase font-bold">Chest Sessions</p>
                 </div>
-                <div className="bg-black/30 rounded-2xl p-4 text-center">
-                  <p className="text-[#3B82F6] font-black text-2xl">{workouts.filter(w => w.status === 'completed').length}</p>
-                  <p className="text-gray-400 text-xs uppercase font-bold">Completed</p>
+                <div className="bg-black/30 rounded-xl sm:rounded-2xl p-2 sm:p-4 text-center">
+                  <p className="text-[#3B82F6] font-black text-lg sm:text-2xl">{workouts.filter(w => w.status === 'completed').length}</p>
+                  <p className="text-gray-400 text-[10px] sm:text-xs uppercase font-bold">Completed</p>
                 </div>
               </div>
               
-              <div className="mt-6 flex items-center justify-between">
+              <div className="mt-4 sm:mt-6 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-2 bg-[#FF7222] rounded-full animate-pulse"></div>
-                  <span className="text-[#FF7222] font-black text-xs uppercase">Live Data</span>
+                  <span className="text-[#FF7222] font-black text-[10px] sm:text-xs uppercase">Live Data</span>
                 </div>
-                <div className="text-white font-black text-sm">→ Click to Analyze</div>
+                <div className="text-white font-black text-xs sm:text-sm">→ Click to Analyze</div>
               </div>
             </div>
           </motion.div>
@@ -908,45 +1182,56 @@ const ProgressModule = () => {
           <motion.div 
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
-            onClick={() => { setAnalyticsType('nutrition'); setShowAnalytics(true); }}
-            className="bg-gradient-to-br from-[#10B981]/20 via-[#10B981]/10 to-transparent border-2 border-[#10B981]/30 rounded-[3rem] p-8 cursor-pointer hover:border-[#10B981]/60 transition-all group relative overflow-hidden"
+            onClick={() => { 
+              if (analyticsLoading) return;
+              setAnalyticsLoading(true);
+              setAnalyticsType('nutrition'); 
+              setShowAnalytics(true);
+              setTimeout(() => {
+                if (!nutritionAnalytics && nutrition?.length > 0) {
+                  processNutritionAnalytics();
+                }
+                setAnalyticsLoading(false);
+              }, 800);
+            }}
+            className={`bg-gradient-to-br from-[#10B981]/20 via-[#10B981]/10 to-transparent border-2 border-[#10B981]/30 rounded-2xl sm:rounded-[3rem] p-4 sm:p-8 cursor-pointer hover:border-[#10B981]/60 transition-all group relative overflow-hidden ${analyticsLoading ? 'opacity-50 pointer-events-none' : ''}`}
           >
-            <div className="absolute top-4 right-4 opacity-20 group-hover:opacity-40 transition-opacity">
-              <Utensils size={64} className="text-[#10B981]" />
+            <div className="absolute top-2 right-2 sm:top-4 sm:right-4 opacity-20 group-hover:opacity-40 transition-opacity">
+              <Utensils size={32} className="text-[#10B981] sm:w-16 sm:h-16" />
             </div>
             
             <div className="relative z-10">
-              <div className="flex items-center gap-4 mb-6">
-                <div className="p-4 bg-[#10B981]/20 rounded-2xl border border-[#10B981]/30">
-                  <Utensils className="w-8 h-8 text-[#10B981]" />
+              <div className="flex items-center gap-2 sm:gap-4 mb-4 sm:mb-6">
+                <div className="p-2 sm:p-4 bg-[#10B981]/20 rounded-xl sm:rounded-2xl border border-[#10B981]/30">
+                  <Utensils className="w-4 h-4 sm:w-8 sm:h-8 text-[#10B981]" />
                 </div>
                 <div>
-                  <h3 className="text-2xl font-black text-white uppercase tracking-wider">Nutrition Analytics</h3>
-                  <p className="text-gray-400 font-bold text-sm">Click for real-time analysis</p>
+                  <h3 className="text-lg sm:text-2xl font-black text-white uppercase tracking-wider">Nutrition Analytics</h3>
+                  <p className="text-gray-400 font-bold text-xs sm:text-sm">Click for real-time analysis</p>
                 </div>
               </div>
               
-              <div className="grid grid-cols-3 gap-4">
-                <div className="bg-black/30 rounded-2xl p-4 text-center">
-                  <p className="text-[#10B981] font-black text-2xl">{Math.round(nutritionStats.totalCalories)}</p>
-                  <p className="text-gray-400 text-xs uppercase font-bold">Total Calories</p>
+              <div className="grid grid-cols-3 gap-2 sm:gap-4">
+                <div className="bg-black/30 rounded-xl sm:rounded-2xl p-2 sm:p-4 text-center">
+                  <p className="text-[#10B981] font-black text-lg sm:text-2xl">{Math.round(nutritionStats.totalCalories)}</p>
+                  <p className="text-gray-400 text-[10px] sm:text-xs uppercase font-bold">Total Calories</p>
                 </div>
-                <div className="bg-black/30 rounded-2xl p-4 text-center">
-                  <p className="text-[#F59E0B] font-black text-2xl">{Math.round(nutritionStats.totalProtein)}g</p>
-                  <p className="text-gray-400 text-xs uppercase font-bold">Protein</p>
+                <div className="bg-black/30 rounded-xl sm:rounded-2xl p-2 sm:p-4 text-center">
+                  <p className="text-[#F59E0B] font-black text-lg sm:text-2xl">{Math.round(nutritionStats.totalProtein)}g</p>
+                  <p className="text-gray-400 text-[10px] sm:text-xs uppercase font-bold">Protein</p>
                 </div>
-                <div className="bg-black/30 rounded-2xl p-4 text-center">
-                  <p className="text-[#8B5CF6] font-black text-2xl">{nutritionStats.mealCount}</p>
-                  <p className="text-gray-400 text-xs uppercase font-bold">Meals Logged</p>
+                <div className="bg-black/30 rounded-xl sm:rounded-2xl p-2 sm:p-4 text-center">
+                  <p className="text-[#8B5CF6] font-black text-lg sm:text-2xl">{nutritionStats.mealCount}</p>
+                  <p className="text-gray-400 text-[10px] sm:text-xs uppercase font-bold">Meals Logged</p>
                 </div>
               </div>
               
-              <div className="mt-6 flex items-center justify-between">
+              <div className="mt-4 sm:mt-6 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-2 bg-[#10B981] rounded-full animate-pulse"></div>
-                  <span className="text-[#10B981] font-black text-xs uppercase">Live Data</span>
+                  <span className="text-[#10B981] font-black text-[10px] sm:text-xs uppercase">Live Data</span>
                 </div>
-                <div className="text-white font-black text-sm">→ Click to Analyze</div>
+                <div className="text-white font-black text-xs sm:text-sm">→ Click to Analyze</div>
               </div>
             </div>
           </motion.div>
@@ -1399,7 +1684,7 @@ const ProgressModule = () => {
 
       {/* --- ANALYTICS MODAL --- */}
       <AnimatePresence>
-        {showAnalytics && <AnalyticsModal />}
+        {showAnalytics && AnalyticsModal}
       </AnimatePresence>
     </div>
   );

@@ -1,13 +1,45 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { assets } from '../../../assets/assets';
+import { useAppContext } from '../../../context/useAppContext';
+import { Weight, Activity, Zap, Target } from 'lucide-react';
 
 const PulseHeartHero = () => {
+  const { progress, workouts, nutritionStats, fetchProgress, fetchWorkouts, fetchNutritionStats } = useAppContext();
   const [currentIndex, setCurrentIndex] = useState(0);
+  
+  // Fetch real-time data on component mount
+  useEffect(() => {
+    fetchProgress();
+    fetchWorkouts();
+    fetchNutritionStats();
+  }, [fetchProgress, fetchWorkouts, fetchNutritionStats]);
+  
+  // Calculate real-time fitness metrics
   const fitnessData = [
-    { label: "Heart Rate", value: "124 BPM", icon: "🔥", color: "text-orange-500" },
-    { label: "Sleep Score", value: "85/100", icon: "🌙", color: "text-purple-500" },
-    { label: "Oxygen (SpO2)", value: "98%", icon: "🫁", color: "text-red-500" },
-    { label: "Daily Steps", value: "12,430", icon: "👟", color: "text-blue-500" }
+    { 
+      label: "Weight", 
+      value: progress && progress.length > 0 ? `${progress[0].weight} KG` : "0 KG", 
+      icon: <Weight size={20} className="text-blue-500" />, 
+      color: "text-blue-500" 
+    },
+    { 
+      label: "Running", 
+      value: progress && progress.length > 0 ? `${progress[0].run || 0} KM` : "0 KM", 
+      icon: <Activity size={20} className="text-green-500" />, 
+      color: "text-green-500" 
+    },
+    { 
+      label: "Total Calories", 
+      value: `${Math.round(nutritionStats?.totalCalories || 0)}`, 
+      icon: <Zap size={20} className="text-orange-500" />, 
+      color: "text-orange-500" 
+    },
+    { 
+      label: "Completed Workouts", 
+      value: `${workouts?.filter(w => w.status === 'completed').length || 0}`, 
+      icon: <Target size={20} className="text-purple-500" />, 
+      color: "text-purple-500" 
+    }
   ];
 
   const nextMetric = () => setCurrentIndex((prev) => (prev + 1) % fitnessData.length);
@@ -33,11 +65,21 @@ const PulseHeartHero = () => {
             70% { transform: scale(1); box-shadow: 0 0 0 15px rgba(255, 114, 34, 0); }
             100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(255, 114, 34, 0); }
           }
+          @keyframes glow-pulse {
+            0%, 100% { box-shadow: 0 0 20px rgba(255, 114, 34, 0.3); }
+            50% { box-shadow: 0 0 40px rgba(255, 114, 34, 0.6), 0 0 60px rgba(255, 114, 34, 0.3); }
+          }
+          @keyframes text-glow {
+            0%, 100% { text-shadow: 0 0 10px rgba(255, 255, 255, 0.3); }
+            50% { text-shadow: 0 0 20px rgba(255, 255, 255, 0.6), 0 0 30px rgba(255, 114, 34, 0.4); }
+          }
           .animate-scroll { animation: infinite-scroll 40s linear infinite; }
           .animate-scroll-reverse { animation: infinite-scroll-reverse 40s linear infinite; }
           .animate-athlete { animation: athlete-entrance 1.5s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
           .animate-watch-float { animation: float-watch 5s ease-in-out infinite; }
           .tap-pulse { animation: pulse-ring 2s infinite; }
+          .glow-pulse { animation: glow-pulse 3s ease-in-out infinite; }
+          .text-glow { animation: text-glow 4s ease-in-out infinite; }
         `}
       </style>
 
@@ -91,16 +133,31 @@ const PulseHeartHero = () => {
             />
             
             {/* Interactive Badge */}
-            <div key={currentIndex} className="absolute -top-10 -left-10 md:-top-12 md:-left-12 z-20 bg-white/90 backdrop-blur-2xl p-4 md:p-6 rounded-[2rem] md:rounded-[2.5rem] shadow-xl min-w-[180px] md:min-w-[220px] border border-white animate-badge">
+            <div key={currentIndex} className="absolute -top-10 -left-10 md:-top-12 md:-left-12 z-20 bg-white/95 backdrop-blur-3xl p-4 md:p-6 rounded-[2rem] md:rounded-[2.5rem] shadow-2xl min-w-[180px] md:min-w-[220px] border border-white/20 animate-badge transform hover:scale-105 hover:rotate-1 transition-all duration-500 hover:shadow-3xl">
                <div className="flex items-center gap-2 md:gap-3 mb-1 md:mb-2">
-                  <span className="text-xl md:text-2xl">{fitnessData[currentIndex].icon}</span>
-                  <p className="text-[9px] md:text-[11px] font-black text-gray-400 uppercase tracking-tighter">{fitnessData[currentIndex].label}</p>
+                  <div className="p-2 rounded-xl bg-gradient-to-br from-gray-50 to-gray-100 shadow-inner transform hover:scale-110 transition-transform duration-300">
+                    {fitnessData[currentIndex].icon}
+                  </div>
+                  <p className="text-[9px] md:text-[11px] font-black text-gray-500 uppercase tracking-tighter animate-pulse">{fitnessData[currentIndex].label}</p>
                </div>
-               <p className={`text-2xl md:text-4xl font-[1000] italic leading-none ${fitnessData[currentIndex].color}`}>
+               <p className={`text-2xl md:text-4xl font-[1000] italic leading-none ${fitnessData[currentIndex].color} drop-shadow-sm transform hover:scale-105 transition-all duration-300`}>
                  {fitnessData[currentIndex].value}
                </p>
                <div className="mt-3 md:mt-4 w-full h-1 bg-gray-100 rounded-full overflow-hidden">
-                  <div className="h-full bg-black transition-all duration-1000" style={{ width: '75%' }}></div>
+                  <div 
+                    className="h-full bg-gradient-to-r from-black via-gray-800 to-black transition-all duration-1000 ease-out rounded-full shadow-lg" 
+                    style={{ 
+                      width: currentIndex === 0 ? `${Math.min((progress?.[0]?.weight || 0) / 100 * 100, 100)}%` :
+                             currentIndex === 1 ? `${Math.min((progress?.[0]?.run || 0) / 10 * 100, 100)}%` :
+                             currentIndex === 2 ? `${Math.min((nutritionStats?.totalCalories || 0) / 3000 * 100, 100)}%` :
+                             `${Math.min((workouts?.filter(w => w.status === 'completed').length || 0) / 20 * 100, 100)}%`,
+                      background: currentIndex === 0 ? 'linear-gradient(90deg, #3B82F6, #1E40AF)' :
+                                 currentIndex === 1 ? 'linear-gradient(90deg, #10B981, #059669)' :
+                                 currentIndex === 2 ? 'linear-gradient(90deg, #F59E0B, #D97706)' :
+                                 'linear-gradient(90deg, #8B5CF6, #7C3AED)',
+                      boxShadow: `0 0 10px ${currentIndex === 0 ? '#3B82F6' : currentIndex === 1 ? '#10B981' : currentIndex === 2 ? '#F59E0B' : '#8B5CF6'}40`
+                    }}
+                  />
                </div>
             </div>
           </div>
@@ -113,14 +170,14 @@ const PulseHeartHero = () => {
         {/* Row 1: Forward Smooth Scroll */}
         <div className="flex whitespace-nowrap animate-scroll">
           {[...Array(6)].map((_, i) => (
-            <div key={i} className="flex items-center gap-12 md:gap-20 px-6 md:px-10">
-              {sports.map((sport) => (
-                <div key={sport} className="flex items-center gap-12 md:gap-20 group">
-                  <span className="text-white/30 text-2xl md:text-5xl font-black uppercase italic tracking-tighter transition-all duration-500 hover:text-[#FF7222] cursor-default">
+            <div key={`forward-${i}`} className="flex items-center gap-12 md:gap-20 px-6 md:px-10">
+              {sports.map((sport, sportIndex) => (
+                <div key={`forward-${i}-${sport}-${sportIndex}`} className="flex items-center gap-12 md:gap-20 group">
+                  <span className="text-white/30 text-2xl md:text-5xl font-black uppercase italic tracking-tighter transition-all duration-500 hover:text-[#FF7222] cursor-default transform hover:scale-110 hover:rotate-1 text-glow">
                     {sport}
                   </span>
                   {/* Glowing Orange Dot */}
-                  <div className="w-2 h-2 md:w-3 md:h-3 bg-[#FF7222] rounded-full shadow-[0_0_15px_#FF7222]"></div>
+                  <div className="w-2 h-2 md:w-3 md:h-3 bg-[#FF7222] rounded-full shadow-[0_0_15px_#FF7222] glow-pulse transform hover:scale-150 transition-transform duration-300"></div>
                 </div>
               ))}
             </div>
@@ -130,13 +187,13 @@ const PulseHeartHero = () => {
         {/* Row 2: Reverse Smooth Scroll (The "Opposite" Logic) */}
         <div className="flex whitespace-nowrap animate-scroll-reverse opacity-40">
           {[...Array(6)].map((_, i) => (
-            <div key={i} className="flex items-center gap-12 md:gap-20 px-6 md:px-10">
-              {[...sports].reverse().map((sport) => (
-                <div key={sport} className="flex items-center gap-12 md:gap-20 group">
-                  <span className="text-white/20 text-xl md:text-4xl font-black uppercase italic tracking-tighter transition-all duration-500 hover:text-white cursor-default">
+            <div key={`reverse-${i}`} className="flex items-center gap-12 md:gap-20 px-6 md:px-10">
+              {[...sports].reverse().map((sport, sportIndex) => (
+                <div key={`reverse-${i}-${sport}-${sportIndex}`} className="flex items-center gap-12 md:gap-20 group">
+                  <span className="text-white/20 text-xl md:text-4xl font-black uppercase italic tracking-tighter transition-all duration-500 hover:text-white cursor-default transform hover:scale-105 hover:-rotate-1">
                     {sport}
                   </span>
-                  <div className="w-1.5 h-1.5 md:w-2 md:h-2 bg-gray-600 rounded-full"></div>
+                  <div className="w-1.5 h-1.5 md:w-2 md:h-2 bg-gray-600 rounded-full transform hover:scale-125 hover:bg-white transition-all duration-300"></div>
                 </div>
               ))}
             </div>

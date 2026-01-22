@@ -959,7 +959,6 @@ const EliteDashboard = () => {
 
   // Get pricing from user context, not navigation state
   const pricing = user?.pricing || 'starter';
-  console.log('🎯 Dashboard Pricing:', pricing);
 
   useEffect(() => {
     fetchDashboard?.();
@@ -993,10 +992,7 @@ const EliteDashboard = () => {
   // Test function to update pricing
   const testUpdatePricing = async (newPricing) => {
     try {
-      console.log(`🧪 Testing pricing update to: ${newPricing}`);
-      console.log(`👤 Current user ID: ${userId}`);
-      
-      const response = await fetch('http://localhost:3000/api/users/me/pricing', {
+      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/users/me/pricing`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -1006,20 +1002,16 @@ const EliteDashboard = () => {
       });
       
       const data = await response.json();
-      console.log(`📊 Update response:`, data);
       
       if (data.success) {
-        console.log('✅ Pricing updated successfully:', data.user.pricing);
         // Refresh user data immediately
         setTimeout(() => {
           fetchDashboard?.();
           window.location.reload(); // Force reload to see changes
         }, 500);
-      } else {
-        console.error('❌ Failed to update pricing:', data.message);
       }
     } catch (error) {
-      console.error('💥 Error updating pricing:', error);
+      // Error updating pricing
     }
   };
 
@@ -1030,9 +1022,6 @@ const EliteDashboard = () => {
     const planName = urlParams.get('plan');
     
     if (isSuccess) {
-      console.log('🎯 Payment Success Detected!');
-      console.log('💳 Plan purchased:', planName);
-      
       setShowSuccessNotification(true);
       // Clean up URL
       window.history.replaceState({}, document.title, window.location.pathname);
@@ -1042,23 +1031,18 @@ const EliteDashboard = () => {
       // Refresh user data after payment success
       const refreshUserData = async () => {
         try {
-          console.log('🔄 Refreshing user data after payment...');
-          const response = await fetch('http://localhost:3000/api/users/me', {
+          const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/users/me`, {
             headers: {
               'Authorization': `Bearer ${await window.Clerk.session.getToken()}`
             }
           });
           const userData = await response.json();
           if (userData.success) {
-            console.log('✅ User data refreshed successfully');
-            console.log('🎯 Updated User Pricing from Database:', userData.user.pricing);
             // Force re-fetch dashboard data with updated user info
             fetchDashboard?.();
-          } else {
-            console.error('❌ Failed to refresh user data:', userData.message);
           }
         } catch (error) {
-          console.error('💥 Error refreshing user data:', error);
+          // Error refreshing user data
         }
       };
       

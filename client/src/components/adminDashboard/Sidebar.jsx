@@ -124,6 +124,7 @@ const AdminSidebar = ({ onPageChange }) => {
           <div className="flex items-center gap-4">
             <motion.div 
               whileHover={{ rotate: 180 }}
+              onClick={() => window.location.href = '/'}
               className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-[0_0_30px_rgba(255,255,255,0.1)] cursor-pointer"
             >
               <Cpu size={24} color="black" strokeWidth={2.5} />
@@ -181,11 +182,6 @@ const AdminSidebar = ({ onPageChange }) => {
             >
               {isCollapsed ? <Zap size={18} /> : <Menu size={18} />}
             </button>
-            {!isCollapsed && (
-              <button className="flex-1 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white p-4 rounded-2xl transition-all flex items-center justify-center border border-red-500/20 shadow-lg shadow-red-500/5">
-                <LogOut size={18} />
-              </button>
-            )}
           </div>
         </div>
 

@@ -9,15 +9,14 @@ const connectCloudinary = async () => {
             secure: true
         });
         
-        console.log('Cloudinary configured successfully');
-        console.log('Cloud name:', process.env.CLOUDINARY_CLOUD_NAME);
-        
-        // Test connection
-        const result = await cloudinary.api.ping();
-        console.log('Cloudinary connection test:', result);
+        if (process.env.NODE_ENV === 'development') {
+            console.log('Cloudinary configured successfully');
+        }
         
     } catch (error) {
-        console.error('Cloudinary configuration error:', error);
+        if (process.env.NODE_ENV === 'development') {
+            console.error('Cloudinary configuration error:', error);
+        }
         throw error;
     }
 }

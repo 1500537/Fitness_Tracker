@@ -17,10 +17,15 @@ const subscriptionSchema = new mongoose.Schema({
   planName: {
     type: String,
     required: true,
-    enum: ['Basic', 'Premium', 'Elite Force']
+    enum: ['starter', 'pro performance', 'elite force']
   },
   amount: {
     type: Number,
+    required: true
+  },
+  billingCycle: {
+    type: String,
+    enum: ['monthly', 'annually'],
     required: true
   },
   startDate: {
@@ -84,6 +89,36 @@ subscriptionSchema.methods.cancel = function(reason = '') {
   this.cancelledAt = new Date();
   this.cancelReason = reason;
   return this.save();
+};
+
+// Static method to create subscription record
+subscriptionSchema.statics.createSubscriptionRecord = async function(userId, userName, userEmail, planName, amount, billingCycle) {
+  try {
+    const endDate = new Date();
+    if (billingCycle === 'annually') {
+      endDate.setFullYear(endDate.getFullYear() + 1);
+    } else {
+      endDate.setMonth(endDate.getMonth() + 1);
+    }
+
+    const subscription = new this({
+      userId,
+      userName,
+      userEmail,
+      planName: planName.toLowerCase(),
+      amount,
+      billingCycle,
+      endDate,
+      transactionId: `txn_${Date.now()}_${userId}`,
+      status: 'active'
+    });
+
+    await subscription.save();
+    return subscription;
+  } catch (error) {
+    console.error('Error creating subscription record:', error);
+    throw error;
+  }
 };
 
 // Static method to get revenue metrics

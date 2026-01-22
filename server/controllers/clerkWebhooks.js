@@ -18,28 +18,53 @@ const clerkWebhooks = async (req, res) => {
 
         // Getting Data from request body
         const {data, type} = req.body
+        
+        console.log('Webhook received:', type, 'for user:', data.id);
 
            const userData = {
-                    _id: data.id,
-                    email: data.email_addresses[0].email_address,
-                    username: data.first_name + " " + data.last_name,
-                    image: data.image_url
+                    clerkId: data.id,
+                    email: data.email_addresses?.[0]?.email_address || '',
+                    username: (data.first_name || '') + " " + (data.last_name || ''),
+                    image: data.image_url || ''
                 }
 
         // Swtch Cases for different Events
         switch (type) {
             case "user.created": {
-                await User.create(userData);
+                const newUser = {
+                    _id: data.id,
+                    email: data.email_addresses?.[0]?.email_address || '',
+                    username: (data.first_name || '') + " " + (data.last_name || ''),
+                    image: data.image_url || '',
+                    role: 'user',
+                    pricing: 'starter'
+                };
+                await User.create(newUser);
+                console.log('User created in database:', data.id);
                 break;
             }
 
             case "user.updated": {
-                await User.findByIdAndUpdate(data.id, userData);
+                const result = await User.findByIdAndUpdate(
+                    data.id,
+                    {
+                        email: data.email_addresses?.[0]?.email_address || '',
+                        username: (data.first_name || '') + " " + (data.last_name || ''),
+                        image: data.image_url || ''
+                    }
+                );
+                console.log('User updated in database:', data.id, result ? 'success' : 'not found');
                 break;
             }
 
             case "user.deleted": {
-                await User.findByIdAndDelete(data.id);
+                const result = await User.findByIdAndDelete(data.id);
+                console.log('User deletion attempt:', data.id, result ? 'DELETED' : 'NOT FOUND');
+                if (result) {
+                    console.log('✅ User successfully deleted from database:', data.id);
+                } else {
+                    console.log('❌ User not found in database:', data.id);
+                }
                 break;
             }
 

@@ -23,5 +23,5 @@ const revenueSchema = mongoose.Schema({
     }
 }, { timestamps: true });
 
-export const Subscription = mongoose.model("Subscription", subscriptionSchema);
+export const SubscriptionRecord = mongoose.model("SubscriptionRecord", subscriptionSchema);
 export const Revenue = mongoose.model("Revenue", revenueSchema);

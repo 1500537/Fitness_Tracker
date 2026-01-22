@@ -21,6 +21,8 @@ import authRoutes from "./routes/authRoutes.js";
 import stripeRoutes from "./routes/stripeRoutes.js";
 import User from "./models/userModal.js";
 import planRoutes from "./routes/planRoutes.js";
+import revenueRoutes from "./routes/revenueRoutes.js";
+import overviewRoutes from "./routes/overviewRoutes.js";
 
 connectDB()
 connectCloudinary()
@@ -29,13 +31,14 @@ const app = express()
 const server = createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: ["http://localhost:5173", "http://localhost:5174", "http://localhost:5175"],
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE"]
+    origin: process.env.CLIENT_URL ? process.env.CLIENT_URL.split(',') : ["http://localhost:5173", "http://localhost:5174", "http://localhost:5175"],
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
+    credentials: true
   }
 });
 
 app.use(cors({
-  origin: ["http://localhost:5173", "http://localhost:5174", "http://localhost:5175"],
+  origin: process.env.CLIENT_URL ? process.env.CLIENT_URL.split(',') : ["http://localhost:5173", "http://localhost:5174", "http://localhost:5175"],
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
   credentials: true
 })) //Enable Cross-Origin Resource Sharing
@@ -85,11 +88,19 @@ app.use('/api/auth', authRoutes);
 // Stripe routes
 app.use('/api/stripe', stripeRoutes);
 
+// Revenue routes
+app.use('/api/revenue', revenueRoutes);
+
+// Overview routes
+app.use('/api/overview', overviewRoutes);
+
 app.get('/', (req, res) => res.send("API is working..."))
 
 // Socket.IO connection handling
 io.on('connection', (socket) => {
-  console.log('User connected:', socket.id);
+  if (process.env.NODE_ENV === 'development') {
+    console.log('User connected:', socket.id);
+  }
 
   // Join user-specific room for real-time updates
   socket.on('join-user-room', async (userId) => {
@@ -98,13 +109,10 @@ io.on('connection', (socket) => {
       if (user && user.isBanned) {
         socket.emit('banned', { message: 'Your account has been banned' });
         socket.disconnect(true);
-        console.log(`Banned user ${userId} attempted to connect`);
         return;
       }
       socket.join(`user_${userId}`);
-      console.log(`User ${userId} joined their room`);
     } catch (error) {
-      console.error('Error checking user ban status:', error);
       socket.disconnect(true);
     }
   });
@@ -112,30 +120,30 @@ io.on('connection', (socket) => {
   // Join admin rooms for workout management
   socket.on('join-workouts-room', () => {
     socket.join('workouts');
-    console.log('Admin joined workouts room');
   });
 
   socket.on('join-categories-room', () => {
     socket.join('categories');
-    console.log('Admin joined categories room');
   });
 
   // Join admin rooms for revenue management
   socket.on('join-revenue-room', () => {
     socket.join('revenue');
-    console.log('Admin joined revenue room');
   });
 
   // Join admin rooms for plans management
   socket.on('join-plans-room', () => {
     socket.join('plans');
-    console.log('Admin joined plans room');
+  });
+
+  // Join overview room for real-time dashboard updates
+  socket.on('join-overview-room', () => {
+    socket.join('overview');
   });
 
   // Join progress room for real-time updates
   socket.on('join-progress-room', (userId) => {
     socket.join(`progress-${userId}`);
-    console.log(`User ${userId} joined progress room`);
   });
 
   // Admin ban/unban user
@@ -147,14 +155,15 @@ io.on('connection', (socket) => {
       if (banned) {
         io.in(`user_${userId}`).disconnectSockets();
       }
-      console.log(`User ${userId} ${banned ? 'banned' : 'unbanned'}`);
     } catch (error) {
-      console.error('Error banning/unbanning user:', error);
+      // Silent error handling
     }
   });
 
   socket.on('disconnect', () => {
-    console.log('User disconnected:', socket.id);
+    if (process.env.NODE_ENV === 'development') {
+      console.log('User disconnected:', socket.id);
+    }
   });
 });
 
