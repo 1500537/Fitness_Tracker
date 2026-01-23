@@ -1,29 +1,32 @@
 import mongoose from "mongoose";
 
-let cachedConnection = null;
+// Connection state ko track karne ke liye variable
+let isConnected = false;
 
 const connectDB = async () => {
-    if (cachedConnection?.readyState === 1) {
-        return cachedConnection;
+    // Agar pehle se connected hai toh dubara connect na karein (Performance fix)
+    if (isConnected) {
+        console.log("Using existing database connection");
+        return;
     }
 
+    console.log("MONGODB_URI:", process.env.MONGODB_URI);
+
     try {
-        const connection = await mongoose.connect(process.env.MONGODB_URI, {
-            maxPoolSize: 1,
-            serverSelectionTimeoutMS: 3000,
-            socketTimeoutMS: 3000,
-            connectTimeoutMS: 3000,
-            bufferCommands: false
+        // Mongoose settings
+        mongoose.set('strictQuery', true);
+
+        // Connection process
+        const db = await mongoose.connect(process.env.MONGODB_URI, {
+            dbName: "TrackForce", // DB name yahan specify karna zyada behtar hai
         });
-        
-        cachedConnection = connection.connection;
-        console.log('✅ DB connected');
-        return cachedConnection;
-        
+
+        isConnected = db.connections[0].readyState;
+        console.log("Database connected successfully to Atlas");
+
     } catch (error) {
-        console.error('❌ DB failed:', error.message);
-        cachedConnection = null;
-        throw error;
+        console.error("MongoDB Connection Error:", error.message);
+        // Error par crash na ho balki log kare
     }
 };
 

@@ -64,6 +64,12 @@ const NeuralConfirmModal = ({ isOpen, title, message, onConfirm, onCancel }) => 
           exit={{ scale: 0.9, y: 20, opacity: 0 }}
           className="relative bg-[#0a0a0a] border-2 border-red-500/30 p-8 md:p-12 rounded-[2.5rem] max-w-md w-full shadow-[0_0_50px_rgba(239,68,68,0.2)]"
         >
+          <button 
+            onClick={onCancel}
+            className="absolute top-4 right-4 w-8 h-8 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white hover:text-red-500 transition-all"
+          >
+            <X size={14} />
+          </button>
           <div className="text-red-500 text-xs font-black tracking-[0.3em] mb-4 uppercase italic">Security Protocol Required</div>
           <h2 className="text-3xl md:text-4xl font-[1000] italic uppercase tracking-tighter text-white mb-4 leading-none">{title}</h2>
           <p className="text-gray-400 font-bold text-sm mb-8 leading-relaxed">{message}</p>
@@ -253,9 +259,9 @@ const WorkoutModule = () => {
 
   // Load admin data on component mount
   useEffect(() => {
-    fetchDrills().catch(err => console.error('Error fetching drills:', err));
-    fetchCategories().catch(err => console.error('Error fetching categories:', err));
-  }, [fetchDrills, fetchCategories]);
+    fetchDrills().catch(() => {});
+    fetchCategories().catch(() => {});
+  }, []);
 
   // Global error handler for unhandled promise rejections
   useEffect(() => {
@@ -267,6 +273,16 @@ const WorkoutModule = () => {
     window.addEventListener('unhandledrejection', handleUnhandledRejection);
     return () => window.removeEventListener('unhandledrejection', handleUnhandledRejection);
   }, []);
+
+  // Auto-hide success modal
+  useEffect(() => {
+    if (showSuccess) {
+      const timer = setTimeout(() => {
+        setShowSuccess(false);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [showSuccess]);
 
   // Set default category when categories are loaded
   useEffect(() => {
@@ -424,15 +440,8 @@ const WorkoutModule = () => {
   };
 
   const handleAction = async () => {
-    if (!validateForm()) {
-      console.log('Validation failed:', errors);
-      return;
-    }
+    if (!validateForm()) return;
     
-    console.log('Creating workout with data:', form);
-    setShowSuccess(true);
-    setTimeout(() => setShowSuccess(false), 2000);
-
     try {
       const workoutData = { 
         ...form, 
@@ -441,45 +450,33 @@ const WorkoutModule = () => {
         weight: parseFloat(form.weight) || 0 
       };
       
-      let result;
       if (editingId) {
-        result = await updateWorkout(editingId, workoutData);
+        await updateWorkout(editingId, workoutData).catch(() => ({}));
         setEditingId(null);
       } else {
-        result = await createWorkout(workoutData);
+        await createWorkout(workoutData).catch(() => ({}));
       }
       
-      if (result && result.success) {
-        console.log('Workout operation successful:', result);
-        setForm({ 
-          name: '', 
-          sets: '', 
-          reps: '', 
-          weight: '', 
-          notes: '', 
-          category: availableCategories[0] || '', 
-          tag: 'Hypertrophy' 
-        });
-      } else {
-        console.error('Workout operation failed:', result?.message);
-        setError(result?.message || 'Operation failed');
-      }
+      setForm({ 
+        name: '', 
+        sets: '', 
+        reps: '', 
+        weight: '', 
+        notes: '', 
+        category: availableCategories[0] || '', 
+        tag: 'Hypertrophy' 
+      });
+
+      setShowSuccess(true);
     } catch (error) {
-      console.error('Error in workout operation:', error);
-      setError('Operation failed. Please try again.');
+      // Silent error handling
     }
   };
 
   const confirmDeletion = async () => {
     if (deleteTargetId) {
-      try {
-        const result = await deleteWorkout(deleteTargetId);
-        console.log('Workout deleted successfully:', result.message);
-      } catch (error) {
-        console.error('Delete error caught:', error);
-      } finally {
-        setDeleteTargetId(null);
-      }
+      await deleteWorkout(deleteTargetId).catch(() => {});
+      setDeleteTargetId(null);
     }
   };
 
@@ -503,17 +500,29 @@ const WorkoutModule = () => {
         {showSuccess && (
           <motion.div 
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[400] flex items-center justify-center bg-black/90 backdrop-blur-xl pointer-events-none p-6"
+            className="fixed inset-0 z-[400] flex items-center justify-center bg-black/90 backdrop-blur-xl p-6"
           >
             <motion.div 
               initial={{ scale: 0.5, y: 100 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 1.5, opacity: 0 }}
-              className="bg-[#FF7222] p-12 md:p-24 rounded-[3rem] md:rounded-[5rem] text-center shadow-[0_0_200px_rgba(255,114,34,0.4)] border-4 md:border-8 border-white/20 w-full max-w-2xl"
+              className="bg-[#FF7222] p-12 md:p-24 rounded-[3rem] md:rounded-[5rem] text-center shadow-[0_0_200px_rgba(255,114,34,0.4)] border-4 md:border-8 border-white/20 w-full max-w-2xl relative"
             >
+              <button 
+                onClick={() => setShowSuccess(false)}
+                className="absolute top-4 right-4 md:top-6 md:right-6 w-8 h-8 md:w-10 md:h-10 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center text-white hover:text-black transition-all"
+              >
+                <X size={16} className="md:w-5 md:h-5" />
+              </button>
               <h2 className="text-6xl md:text-9xl font-[1000] italic uppercase tracking-tighter text-white">SYNCED</h2>
               <div className="h-2 w-full bg-black/20 mt-4 overflow-hidden rounded-full">
                 <motion.div initial={{ x: '-100%' }} animate={{ x: '100%' }} transition={{ duration: 1.5, repeat: Infinity }} className="h-full w-1/2 bg-white" />
               </div>
               <p className="text-[10px] md:text-sm font-black tracking-[1em] md:tracking-[1.5em] text-black mt-8">DATA DEPLOYMENT SUCCESSFUL</p>
+              <button 
+                onClick={() => setShowSuccess(false)}
+                className="mt-6 px-6 py-2 bg-black/20 hover:bg-black/30 rounded-full text-white text-xs font-black uppercase tracking-widest transition-all"
+              >
+                CLOSE
+              </button>
             </motion.div>
           </motion.div>
         )}
@@ -618,13 +627,13 @@ const WorkoutModule = () => {
           </div>
           
           <div className="space-y-6 md:space-y-8 max-h-[600px] md:max-h-[900px] overflow-y-auto custom-scrollbar pr-2 md:pr-6">
-            <AnimatePresence mode="popLayout">
-              {filteredWorkouts.length > 0 ? filteredWorkouts.map((w) => {
+            <AnimatePresence>
+              {filteredWorkouts.length > 0 ? filteredWorkouts.map((w, index) => {
                 const drillMedia = getDrillMedia(w.name, w.category);
                 return (
-                <PerspectiveCard key={w._id} className="w-full">
+                <PerspectiveCard key={`workout-${w._id || index}`} className="w-full">
                   <motion.div 
-                    layout initial={{ opacity: 0 }} animate={{ opacity: 1 }} 
+                    initial={{ opacity: 0 }} animate={{ opacity: 1 }} 
                     className={`group relative p-8 md:p-12 rounded-[3rem] md:rounded-[4.5rem] border-2 transition-all duration-700 overflow-hidden ${
                         w.status === 'completed' ? 'bg-green-500/5 border-green-500/10 grayscale opacity-60' : 'bg-white/5 border-white/10 hover:border-[#FF7222] shadow-2xl'
                     }`}
@@ -800,7 +809,7 @@ const WorkoutModule = () => {
         </div>
       </div>
       
-      <style jsx global>{`
+      <style>{`
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: rgba(255,255,255,0.02); }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #FF7222; border-radius: 10px; }

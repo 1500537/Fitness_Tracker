@@ -12,6 +12,16 @@ if (!PUBLISHABLE_KEY) {
   throw new Error('Missing Publishable Key')
 }
 
+// Global error handlers
+window.addEventListener('unhandledrejection', (event) => {
+  console.log('Unhandled promise rejection:', event.reason);
+  event.preventDefault();
+});
+
+window.addEventListener('error', (event) => {
+  console.log('Global error:', event.error);
+});
+
 createRoot(document.getElementById('root')).render(
   <StrictMode>
  <ClerkProvider 

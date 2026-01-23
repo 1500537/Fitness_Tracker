@@ -99,6 +99,7 @@ export const AppProvider = ({ children }) => {
   useEffect(() => {
     // Socket.IO disabled via environment variable
     if (!import.meta.env.VITE_ENABLE_SOCKET || import.meta.env.VITE_ENABLE_SOCKET !== 'true') {
+      console.log('Socket.IO disabled via environment variable');
       return;
     }
 
@@ -107,12 +108,10 @@ export const AppProvider = ({ children }) => {
       
       try {
         newSocket = io(import.meta.env.VITE_BACKEND_URL, {
-          transports: ['polling'],
-          timeout: 20000,
-          reconnection: true,
-          reconnectionAttempts: 5,
-          reconnectionDelay: 2000,
-          forceNew: true
+          transports: ['websocket', 'polling'],
+          timeout: 5000,
+          reconnection: false,
+          forceNew: false
         });
 
         setSocket(newSocket);
@@ -120,72 +119,15 @@ export const AppProvider = ({ children }) => {
         newSocket.on('connect', () => {
           console.log('Socket connected');
           newSocket.emit('join-user-room', userId);
-          newSocket.emit('join-workouts-room');
-          newSocket.emit('join-categories-room');
-          newSocket.emit('join-revenue-room');
-          newSocket.emit('join-plans-room');
-          newSocket.emit('join-progress-room', userId);
-        });
-
-        newSocket.on('drillCreated', (drill) => {
-          setDrills(prev => [drill, ...prev]);
-        });
-
-        newSocket.on('drillUpdated', (drill) => {
-          setDrills(prev => prev.map(d => d._id === drill._id ? drill : d));
-        });
-
-        newSocket.on('drillDeleted', (id) => {
-          setDrills(prev => prev.filter(d => d._id !== id));
-        });
-
-        newSocket.on('categoryCreated', (category) => {
-          setCategories(prev => [category, ...prev]);
-        });
-
-        newSocket.on('categoryUpdated', (category) => {
-          setCategories(prev => prev.map(c => c._id === category._id ? category : c));
-        });
-
-        newSocket.on('categoryDeleted', (id) => {
-          setCategories(prev => prev.filter(c => c._id !== id));
-        });
-
-        newSocket.on('banned', (banData) => {
-          setBanAlert(banData.message);
-          setTimeout(() => {
-            signOut();
-          }, 3000);
-        });
-
-        newSocket.on('progress-added', (newProgress) => {
-          setProgress(prev => {
-            const filtered = prev.filter(p => p._id !== newProgress._id);
-            return [newProgress, ...filtered].sort((a, b) => new Date(b.date) - new Date(a.date));
-          });
-          setTimeout(() => fetchDashboard?.(), 100);
-        });
-
-        newSocket.on('progress-updated', (updatedProgress) => {
-          setProgress(prev => prev.map(p => p._id === updatedProgress._id ? updatedProgress : p));
-          setTimeout(() => fetchDashboard?.(), 100);
-        });
-
-        newSocket.on('progress-deleted', ({ id }) => {
-          setProgress(prev => prev.filter(p => p._id !== id));
-          setTimeout(() => fetchDashboard?.(), 100);
         });
 
         newSocket.on('connect_error', (error) => {
           console.log('Socket connection error:', error.message);
+          newSocket.disconnect();
         });
 
         newSocket.on('disconnect', (reason) => {
           console.log('Socket disconnected:', reason);
-        });
-
-        newSocket.on('error', (error) => {
-          console.log('Socket error:', error.message);
         });
 
         return () => {
@@ -484,23 +426,17 @@ export const AppProvider = ({ children }) => {
     }
   };
 
-  // Fetch user data with timeout
+  // Fetch user data
   const fetchUser = useCallback(async () => {
     if (!userId) return;
 
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000); // Reduced to 5 seconds
-      
       const response = await fetch(`${API_BASE}/users/me`, {
         headers: {
           'Authorization': `Bearer ${await window.Clerk.session.getToken()}`,
           'Content-Type': 'application/json'
-        },
-        signal: controller.signal
+        }
       });
-      
-      clearTimeout(timeoutId);
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
@@ -527,23 +463,12 @@ export const AppProvider = ({ children }) => {
               reason: 'Your account has been suspended. Please contact support.'
             });
           }, 0);
-        } else {
-          setError(data.message);
         }
       }
     } catch (err) {
-      if (err.name === 'AbortError') {
-        console.log('User fetch timed out - using cached data');
-        // Set minimal user state to prevent infinite loading
-        if (!user) {
-          setUser({ role: 'user', pricing: 'starter', _id: userId });
-        }
-      } else {
-        console.error('User fetch error:', err.message);
-        // Set fallback user state
-        if (!user) {
-          setUser({ role: 'user', pricing: 'starter', _id: userId });
-        }
+      // Set fallback user state to prevent infinite loading
+      if (!user) {
+        setUser({ role: 'user', pricing: 'starter', _id: userId });
       }
     }
   }, [userId]);
@@ -680,17 +605,10 @@ export const AppProvider = ({ children }) => {
 
   // Separate effect for user data to prevent conflicts
   useEffect(() => {
-    let timeoutId;
-    
     if (isLoaded && userId) {
-      timeoutId = setTimeout(() => {
-        fetchUser();
-      }, 300); // Delay user fetch to prevent conflicts
+      // Fetch user immediately when userId is available
+      fetchUser();
     }
-    
-    return () => {
-      if (timeoutId) clearTimeout(timeoutId);
-    };
   }, [userId, isLoaded, fetchUser]);
 
   // Add new progress entry

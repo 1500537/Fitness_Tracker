@@ -514,8 +514,8 @@ const NutritionModule = () => {
             </div>
             <div className="grid grid-cols-1 gap-4 max-h-[500px] overflow-y-auto custom-scrollbar pr-2 pb-10">
                 <AnimatePresence mode="popLayout">
-                {filteredLogs.map((meal) => (
-                    <motion.div layout initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} key={meal._id} className="bg-[#0A0A0A] border border-white/5 p-6 rounded-[2.5rem] flex items-center justify-between group">
+                {filteredLogs.map((meal, index) => (
+                    <motion.div layout initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} key={`meal-${meal._id || index}-${meal.name}`} className="bg-[#0A0A0A] border border-white/5 p-6 rounded-[2.5rem] flex items-center justify-between group">
                         <div className="flex items-center gap-4 lg:gap-6">
                             <div className="w-12 h-12 lg:w-14 lg:h-14 bg-[#FF7222]/5 border border-white/5 rounded-2xl flex flex-col items-center justify-center">
                                 <span className="text-[7px] font-black text-gray-500 uppercase italic">{meal.time || '00:00'}</span>

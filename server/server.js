@@ -40,11 +40,14 @@ if (process.env.ENABLE_SOCKET === 'true') {
         methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
         credentials: true
       },
-      transports: ['polling'],
+      transports: ['websocket', 'polling'],
       allowEIO3: true,
-      pingTimeout: 60000,
-      pingInterval: 25000
+      pingTimeout: 30000,
+      pingInterval: 10000,
+      upgradeTimeout: 10000,
+      maxHttpBufferSize: 1e6
     });
+    console.log('Socket.IO initialized successfully');
   } catch (error) {
     console.log('Socket.IO initialization failed:', error.message);
   }
@@ -116,6 +119,9 @@ if (io) {
   io.on('connection', (socket) => {
     console.log('User connected:', socket.id);
 
+    // Set socket timeout
+    socket.setTimeout(30000);
+
     socket.on('join-user-room', async (userId) => {
       try {
         if (!userId) return;
@@ -126,9 +132,10 @@ if (io) {
           return;
         }
         socket.join(`user_${userId}`);
+        console.log(`User ${userId} joined room`);
       } catch (error) {
         console.log('Join user room error:', error.message);
-        socket.disconnect(true);
+        socket.emit('error', { message: 'Failed to join user room' });
       }
     });
 
@@ -153,7 +160,10 @@ if (io) {
     });
 
     socket.on('join-progress-room', (userId) => {
-      if (userId) socket.join(`progress-${userId}`);
+      if (userId) {
+        socket.join(`progress-${userId}`);
+        console.log(`User ${userId} joined progress room`);
+      }
     });
 
     socket.on('ban-user', async (data) => {
@@ -167,20 +177,30 @@ if (io) {
         }
       } catch (error) {
         console.log('Ban user error:', error.message);
+        socket.emit('error', { message: 'Failed to ban user' });
       }
     });
 
-    socket.on('disconnect', () => {
-      console.log('User disconnected:', socket.id);
+    socket.on('disconnect', (reason) => {
+      console.log('User disconnected:', socket.id, 'Reason:', reason);
     });
 
     socket.on('error', (error) => {
       console.log('Socket error:', error.message);
     });
+
+    socket.on('connect_error', (error) => {
+      console.log('Socket connect error:', error.message);
+    });
   });
 
   io.on('error', (error) => {
-    console.log('Socket.IO error:', error.message);
+    console.log('Socket.IO server error:', error.message);
+  });
+
+  // Handle server-side connection errors
+  io.engine.on('connection_error', (err) => {
+    console.log('Socket.IO connection error:', err.req, err.code, err.message, err.context);
   });
 }
 
