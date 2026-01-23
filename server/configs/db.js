@@ -1,30 +1,29 @@
 import mongoose from "mongoose";
 
-// Connection state ko track karne ke liye variable
-let isConnected = false;
+let cachedConnection = null;
 
 const connectDB = async () => {
-    // Agar pehle se connected hai toh dubara connect na karein (Performance fix)
-    if (isConnected) {
-        return;
+    if (cachedConnection?.readyState === 1) {
+        return cachedConnection;
     }
 
     try {
-        // Mongoose settings
-        mongoose.set('strictQuery', true);
-
-        // Connection process
-        const db = await mongoose.connect(process.env.MONGODB_URI, {
-            dbName: "TrackForce", // DB name yahan specify karna zyada behtar hai
+        const connection = await mongoose.connect(process.env.MONGODB_URI, {
+            maxPoolSize: 1,
+            serverSelectionTimeoutMS: 3000,
+            socketTimeoutMS: 3000,
+            connectTimeoutMS: 3000,
+            bufferCommands: false
         });
-
-        isConnected = db.connections[0].readyState;
-        console.log('Database connected successfully');
+        
+        cachedConnection = connection.connection;
+        console.log('✅ DB connected');
+        return cachedConnection;
+        
     } catch (error) {
-        if (process.env.NODE_ENV === 'development') {
-            console.error('Database connection failed:', error.message);
-        }
-        process.exit(1);
+        console.error('❌ DB failed:', error.message);
+        cachedConnection = null;
+        throw error;
     }
 };
 

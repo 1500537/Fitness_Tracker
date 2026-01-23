@@ -95,170 +95,110 @@ export const AppProvider = ({ children }) => {
     }
   }, [userId]);
 
-  // Socket for real-time drill updates
+  // Socket for real-time updates with error handling
   useEffect(() => {
+    // Socket.IO disabled via environment variable
+    if (!import.meta.env.VITE_ENABLE_SOCKET || import.meta.env.VITE_ENABLE_SOCKET !== 'true') {
+      return;
+    }
+
     if (isLoaded && userId) {
-      const newSocket = io(import.meta.env.VITE_BACKEND_URL, {
-        transports: ['websocket', 'polling'],
-        timeout: 5000,
-        reconnection: true,
-        reconnectionAttempts: 5,
-        reconnectionDelay: 1000,
-      });
-
-      setSocket(newSocket);
-
-      // Connection events
-      newSocket.on('connect', () => {
-        newSocket.emit('join-user-room', userId);
-        newSocket.emit('join-workouts-room');
-        newSocket.emit('join-categories-room');
-        newSocket.emit('join-revenue-room');
-        newSocket.emit('join-plans-room');
-        newSocket.emit('join-progress-room', userId);
-      });
-
-      // Real-time drill updates
-      newSocket.on('drillCreated', (drill) => {
-        setDrills(prev => [drill, ...prev]);
-      });
-
-      newSocket.on('drillUpdated', (drill) => {
-        setDrills(prev => prev.map(d => d._id === drill._id ? drill : d));
-      });
-
-      newSocket.on('drillDeleted', (id) => {
-        setDrills(prev => prev.filter(d => d._id !== id));
-      });
-
-      // Real-time category updates
-      newSocket.on('categoryCreated', (category) => {
-        setCategories(prev => [category, ...prev]);
-      });
-
-      newSocket.on('categoryUpdated', (category) => {
-        setCategories(prev => prev.map(c => c._id === category._id ? category : c));
-      });
-
-      newSocket.on('categoryDeleted', (id) => {
-        setCategories(prev => prev.filter(c => c._id !== id));
-      });
-
-      // Real-time revenue updates
-      newSocket.on('subscription-created', (data) => {
-        setRevenueData(prev => {
-          if (!prev) return prev;
-          return {
-            ...prev,
-            subscriptions: [data.subscription, ...prev.subscriptions],
-            metrics: {
-              ...prev.metrics,
-              totalRevenue: prev.metrics.totalRevenue + data.subscription.amount,
-              activeSubscriptions: prev.metrics.activeSubscriptions + 1
-            }
-          };
+      let newSocket = null;
+      
+      try {
+        newSocket = io(import.meta.env.VITE_BACKEND_URL, {
+          transports: ['polling'],
+          timeout: 20000,
+          reconnection: true,
+          reconnectionAttempts: 5,
+          reconnectionDelay: 2000,
+          forceNew: true
         });
-      });
 
-      newSocket.on('subscription-updated', (data) => {
-        setRevenueData(prev => {
-          if (!prev) return prev;
-          return {
-            ...prev,
-            subscriptions: prev.subscriptions.map(sub => 
-              sub.id === data.subscription.id ? data.subscription : sub
-            )
-          };
+        setSocket(newSocket);
+
+        newSocket.on('connect', () => {
+          console.log('Socket connected');
+          newSocket.emit('join-user-room', userId);
+          newSocket.emit('join-workouts-room');
+          newSocket.emit('join-categories-room');
+          newSocket.emit('join-revenue-room');
+          newSocket.emit('join-plans-room');
+          newSocket.emit('join-progress-room', userId);
         });
-      });
 
-      newSocket.on('subscription-deleted', (data) => {
-        setRevenueData(prev => {
-          if (!prev) return prev;
-          const deletedSub = prev.subscriptions.find(sub => sub.id === data.subscriptionId);
-          return {
-            ...prev,
-            subscriptions: prev.subscriptions.filter(sub => sub.id !== data.subscriptionId),
-            metrics: {
-              ...prev.metrics,
-              totalRevenue: prev.metrics.totalRevenue - (deletedSub?.amount || 0),
-              activeSubscriptions: Math.max(0, prev.metrics.activeSubscriptions - 1)
-            }
-          };
+        newSocket.on('drillCreated', (drill) => {
+          setDrills(prev => [drill, ...prev]);
         });
-      });
 
-      newSocket.on('subscription-extended', (data) => {
-        setRevenueData(prev => {
-          if (!prev) return prev;
-          return {
-            ...prev,
-            subscriptions: prev.subscriptions.map(sub => 
-              sub.id === data.subscription.id ? data.subscription : sub
-            )
-          };
+        newSocket.on('drillUpdated', (drill) => {
+          setDrills(prev => prev.map(d => d._id === drill._id ? drill : d));
         });
-      });
 
-      newSocket.on('subscription-cancelled', (data) => {
-        setRevenueData(prev => {
-          if (!prev) return prev;
-          return {
-            ...prev,
-            subscriptions: prev.subscriptions.map(sub => 
-              sub.id === data.subscription.id ? data.subscription : sub
-            )
-          };
+        newSocket.on('drillDeleted', (id) => {
+          setDrills(prev => prev.filter(d => d._id !== id));
         });
-      });
 
-      // Handle real-time ban notification
-      newSocket.on('banned', (banData) => {
-        setBanAlert(banData.message);
-        // Auto logout banned user
-        setTimeout(() => {
-          signOut();
-        }, 3000); // 3 second delay to show ban message
-      });
-
-      // Real-time progress updates
-      newSocket.on('progress-added', (newProgress) => {
-        setProgress(prev => {
-          // Remove any existing progress with the same _id to prevent duplicates
-          const filtered = prev.filter(p => p._id !== newProgress._id);
-          return [newProgress, ...filtered].sort((a, b) => new Date(b.date) - new Date(a.date));
+        newSocket.on('categoryCreated', (category) => {
+          setCategories(prev => [category, ...prev]);
         });
-        // Refetch dashboard to update chart data
-        setTimeout(() => fetchDashboard?.(), 100);
-      });
 
-      newSocket.on('progress-updated', (updatedProgress) => {
-        setProgress(prev => prev.map(p => p._id === updatedProgress._id ? updatedProgress : p));
-        // Refetch dashboard to update chart data
-        setTimeout(() => fetchDashboard?.(), 100);
-      });
+        newSocket.on('categoryUpdated', (category) => {
+          setCategories(prev => prev.map(c => c._id === category._id ? category : c));
+        });
 
-      newSocket.on('progress-deleted', ({ id }) => {
-        setProgress(prev => prev.filter(p => p._id !== id));
-        // Refetch dashboard to update chart data
-        setTimeout(() => fetchDashboard?.(), 100);
-      });
+        newSocket.on('categoryDeleted', (id) => {
+          setCategories(prev => prev.filter(c => c._id !== id));
+        });
 
-      newSocket.on('disconnect', () => {
-        // Connection closed
-      });
+        newSocket.on('banned', (banData) => {
+          setBanAlert(banData.message);
+          setTimeout(() => {
+            signOut();
+          }, 3000);
+        });
 
-      // Periodic check for ban status every 30 seconds
-      const banCheckInterval = setInterval(() => {
-        if (userId) {
-          fetchUser();
+        newSocket.on('progress-added', (newProgress) => {
+          setProgress(prev => {
+            const filtered = prev.filter(p => p._id !== newProgress._id);
+            return [newProgress, ...filtered].sort((a, b) => new Date(b.date) - new Date(a.date));
+          });
+          setTimeout(() => fetchDashboard?.(), 100);
+        });
+
+        newSocket.on('progress-updated', (updatedProgress) => {
+          setProgress(prev => prev.map(p => p._id === updatedProgress._id ? updatedProgress : p));
+          setTimeout(() => fetchDashboard?.(), 100);
+        });
+
+        newSocket.on('progress-deleted', ({ id }) => {
+          setProgress(prev => prev.filter(p => p._id !== id));
+          setTimeout(() => fetchDashboard?.(), 100);
+        });
+
+        newSocket.on('connect_error', (error) => {
+          console.log('Socket connection error:', error.message);
+        });
+
+        newSocket.on('disconnect', (reason) => {
+          console.log('Socket disconnected:', reason);
+        });
+
+        newSocket.on('error', (error) => {
+          console.log('Socket error:', error.message);
+        });
+
+        return () => {
+          if (newSocket) {
+            newSocket.disconnect();
+          }
+        };
+      } catch (error) {
+        console.log('Socket initialization error:', error.message);
+        if (newSocket) {
+          newSocket.disconnect();
         }
-      }, 30000);
-
-      return () => {
-        clearInterval(banCheckInterval);
-        newSocket.disconnect();
-      };
+      }
     }
   }, [isLoaded, userId]);
 
@@ -544,80 +484,69 @@ export const AppProvider = ({ children }) => {
     }
   };
 
-  // Fetch user data
+  // Fetch user data with timeout
   const fetchUser = useCallback(async () => {
     if (!userId) return;
 
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // Reduced to 5 seconds
+      
       const response = await fetch(`${API_BASE}/users/me`, {
         headers: {
           'Authorization': `Bearer ${await window.Clerk.session.getToken()}`,
           'Content-Type': 'application/json'
-        }
+        },
+        signal: controller.signal
       });
-
+      
+      clearTimeout(timeoutId);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      
       const data = await response.json();
       
       if (data.success) {
         setUser(data.user);
         
-        // Initialize subscription if not exists
-        if (!data.user.subscription?.expiresAt) {
-          fetch(`${API_BASE}/users/me/init-subscription`, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${await window.Clerk.session.getToken()}`,
-              'Content-Type': 'application/json'
-            }
-          }).then(res => res.json()).then(subData => {
-            if (subData.success) {
-              // Refetch user data to get updated subscription
-              setTimeout(() => fetchUser(), 1000);
-            }
-          }).catch(err => {});
-        }
-
-        // Check if user is banned immediately after fetching user data
         if (data.user.isBanned) {
-          setBanAlert({
-            message: 'Your account has been suspended',
-            reason: data.user.banReason || 'Your account has been suspended. Please contact support.'
-          });
-        }
-
-        // Check if subscription is expired - but don't show modal anywhere
-        // Modal logic removed as per user request
-
-        // Show premium modal once per login if pricing is pro/elite and on dashboard route and subscription is active
-        try {
-          const pricing = (data.user.pricing || '').toString().toLowerCase();
-          const currentPath = window.location.pathname;
-          const isDashboardRoute = currentPath.startsWith('/dashboard');
-          const isSubscriptionActive = data.user.subscription?.isActive && data.user.subscription?.status !== 'expired';
-          const modalKey = `premiumModalShown_${data.user._id}`;
-          
-          if ((pricing === 'pro' || pricing === 'elite') && !localStorage.getItem(modalKey) && isDashboardRoute && isSubscriptionActive) {
-            setShowPremiumModal(true);
-            localStorage.setItem(modalKey, 'true');
-          }
-        } catch (err) {
-          // Premium modal logic failed silently
+          setTimeout(() => {
+            setBanAlert({
+              message: 'Your account has been suspended',
+              reason: data.user.banReason || 'Your account has been suspended. Please contact support.'
+            });
+          }, 0);
         }
       } else {
-        // Check if user is banned
         if (data.message === "Account banned") {
-          setBanAlert({
-            message: 'Your account has been suspended',
-            reason: 'Your account has been suspended. Please contact support.'
-          });
+          setTimeout(() => {
+            setBanAlert({
+              message: 'Your account has been suspended',
+              reason: 'Your account has been suspended. Please contact support.'
+            });
+          }, 0);
         } else {
           setError(data.message);
         }
       }
     } catch (err) {
-      setError(err.message);
+      if (err.name === 'AbortError') {
+        console.log('User fetch timed out - using cached data');
+        // Set minimal user state to prevent infinite loading
+        if (!user) {
+          setUser({ role: 'user', pricing: 'starter', _id: userId });
+        }
+      } else {
+        console.error('User fetch error:', err.message);
+        // Set fallback user state
+        if (!user) {
+          setUser({ role: 'user', pricing: 'starter', _id: userId });
+        }
+      }
     }
-  }, [userId, premiumModalShownUserId, expiredModalDismissed, showExpiredModal]);
+  }, [userId]);
 
   // Real-time user data refresh on payment success
   useEffect(() => {

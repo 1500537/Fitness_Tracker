@@ -29,13 +29,28 @@ connectCloudinary()
 
 const app = express()
 const server = createServer(app);
-const io = new Server(server, {
-  cors: {
-    origin: process.env.CLIENT_URL ? process.env.CLIENT_URL.split(',') : ["http://localhost:5173", "http://localhost:5174", "http://localhost:5175"],
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
-    credentials: true
+
+// Socket.IO with environment variable control
+let io = null;
+if (process.env.ENABLE_SOCKET === 'true') {
+  try {
+    io = new Server(server, {
+      cors: {
+        origin: process.env.CLIENT_URL ? process.env.CLIENT_URL.split(',') : ["http://localhost:5173"],
+        methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
+        credentials: true
+      },
+      transports: ['polling'],
+      allowEIO3: true,
+      pingTimeout: 60000,
+      pingInterval: 25000
+    });
+  } catch (error) {
+    console.log('Socket.IO initialization failed:', error.message);
   }
-});
+} else {
+  console.log('Socket.IO disabled via environment variable');
+}
 
 app.use(cors({
   origin: process.env.CLIENT_URL ? process.env.CLIENT_URL.split(',') : ["http://localhost:5173", "http://localhost:5174", "http://localhost:5175"],
@@ -51,12 +66,12 @@ app.use(clerkMiddleware())
 
 // Middleware to attach io to requests
 app.use((req, res, next) => {
-  req.io = io;
+  req.io = io || null;
   next();
 });
 
 // Store io instance in app for controllers
-app.set('io', io);
+app.set('io', io || null);
 
 // API to listen to Clerk Webhooks
 app.use('/api/clerk', clerkWebhooks);
@@ -96,76 +111,78 @@ app.use('/api/overview', overviewRoutes);
 
 app.get('/', (req, res) => res.send("API is working..."))
 
-// Socket.IO connection handling
-io.on('connection', (socket) => {
-  if (process.env.NODE_ENV === 'development') {
+// Socket.IO connection handling with error handling
+if (io) {
+  io.on('connection', (socket) => {
     console.log('User connected:', socket.id);
-  }
 
-  // Join user-specific room for real-time updates
-  socket.on('join-user-room', async (userId) => {
-    try {
-      const user = await User.findById(userId);
-      if (user && user.isBanned) {
-        socket.emit('banned', { message: 'Your account has been banned' });
+    socket.on('join-user-room', async (userId) => {
+      try {
+        if (!userId) return;
+        const user = await User.findById(userId);
+        if (user && user.isBanned) {
+          socket.emit('banned', { message: 'Your account has been banned' });
+          socket.disconnect(true);
+          return;
+        }
+        socket.join(`user_${userId}`);
+      } catch (error) {
+        console.log('Join user room error:', error.message);
         socket.disconnect(true);
-        return;
       }
-      socket.join(`user_${userId}`);
-    } catch (error) {
-      socket.disconnect(true);
-    }
-  });
+    });
 
-  // Join admin rooms for workout management
-  socket.on('join-workouts-room', () => {
-    socket.join('workouts');
-  });
+    socket.on('join-workouts-room', () => {
+      socket.join('workouts');
+    });
 
-  socket.on('join-categories-room', () => {
-    socket.join('categories');
-  });
+    socket.on('join-categories-room', () => {
+      socket.join('categories');
+    });
 
-  // Join admin rooms for revenue management
-  socket.on('join-revenue-room', () => {
-    socket.join('revenue');
-  });
+    socket.on('join-revenue-room', () => {
+      socket.join('revenue');
+    });
 
-  // Join admin rooms for plans management
-  socket.on('join-plans-room', () => {
-    socket.join('plans');
-  });
+    socket.on('join-plans-room', () => {
+      socket.join('plans');
+    });
 
-  // Join overview room for real-time dashboard updates
-  socket.on('join-overview-room', () => {
-    socket.join('overview');
-  });
+    socket.on('join-overview-room', () => {
+      socket.join('overview');
+    });
 
-  // Join progress room for real-time updates
-  socket.on('join-progress-room', (userId) => {
-    socket.join(`progress-${userId}`);
-  });
+    socket.on('join-progress-room', (userId) => {
+      if (userId) socket.join(`progress-${userId}`);
+    });
 
-  // Admin ban/unban user
-  socket.on('ban-user', async (data) => {
-    try {
-      const { userId, banned } = data;
-      await User.findByIdAndUpdate(userId, { isBanned: banned });
-      io.to(`user_${userId}`).emit('banned', { message: banned ? 'Your account has been banned' : 'Your account has been unbanned' });
-      if (banned) {
-        io.in(`user_${userId}`).disconnectSockets();
+    socket.on('ban-user', async (data) => {
+      try {
+        const { userId, banned } = data;
+        if (!userId) return;
+        await User.findByIdAndUpdate(userId, { isBanned: banned });
+        io.to(`user_${userId}`).emit('banned', { message: banned ? 'Your account has been banned' : 'Your account has been unbanned' });
+        if (banned) {
+          io.in(`user_${userId}`).disconnectSockets();
+        }
+      } catch (error) {
+        console.log('Ban user error:', error.message);
       }
-    } catch (error) {
-      // Silent error handling
-    }
-  });
+    });
 
-  socket.on('disconnect', () => {
-    if (process.env.NODE_ENV === 'development') {
+    socket.on('disconnect', () => {
       console.log('User disconnected:', socket.id);
-    }
+    });
+
+    socket.on('error', (error) => {
+      console.log('Socket error:', error.message);
+    });
   });
-});
+
+  io.on('error', (error) => {
+    console.log('Socket.IO error:', error.message);
+  });
+}
 
 const PORT = process.env.PORT || 3000
 server.listen(PORT, () => console.log(`Server running on port ${PORT}`));

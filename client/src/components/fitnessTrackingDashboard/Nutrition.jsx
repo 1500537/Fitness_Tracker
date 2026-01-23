@@ -202,6 +202,11 @@ const NutritionModule = () => {
     if (validationErrors[field]) setValidationErrors(prev => ({ ...prev, [field]: '' }));
   };
 
+  const trigger = (msg, type) => {
+    setNotif({ show: true, msg, type });
+    setTimeout(() => setNotif({ show: false, msg: '', type: '' }), 3000);
+  };
+
   const addMeal = async () => {
     if (!validateForm()) return trigger("INVALID INTEL", "error");
     const result = await addNutritionEntry({ ...form, carbs: parseFloat(form.carbs) || 0, fats: parseFloat(form.fats) || 0 });
@@ -218,14 +223,12 @@ const NutritionModule = () => {
     trigger("DATA DELETED", "success");
   };
 
-  // --- PDF EXPORT LOGIC FIXED ---
   const handleExportPDF = () => {
     try {
       const doc = new jsPDF();
       
-      // Title
       doc.setFontSize(22);
-      doc.setTextColor(255, 114, 34); // Tactical Orange
+      doc.setTextColor(255, 114, 34);
       doc.text("TACTICAL FUEL LOG", 14, 20);
       
       doc.setFontSize(10);

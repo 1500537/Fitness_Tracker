@@ -127,17 +127,14 @@ const AnimatedRoutes = () => {
     }
   }, [user, userId]);
   
-  // Show loading until authentication and user data is loaded, but show ban alert if detected
-  if (!isLoaded || (userId && !user && !banAlert)) {
+  // Show loading only until Clerk authentication is loaded
+  if (!isLoaded) {
     return (
       <div className="min-h-screen bg-[#050505] flex items-center justify-center">
-        <div className="text-white text-xl">Loading...</div>
-        {banAlert && (
-          <BanAlert 
-            banAlert={banAlert} 
-            onClose={() => setBanAlert(null)} 
-          />
-        )}
+        <div className="flex flex-col items-center space-y-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#FF7222]"></div>
+          <div className="text-white text-xl">Loading...</div>
+        </div>
       </div>
     );
   }
