@@ -126,26 +126,59 @@ const WorkoutDetail = ({ workout, onClose, onFinish }) => {
             </div>
 
             <div className="p-8 pt-6 space-y-6">
-              {/* Dynamic HUD Display (Timer vs Rest) */}
-              <div className="relative aspect-[16/9] bg-gradient-to-br from-white/[0.04] to-transparent rounded-[3rem] border border-white/10 flex flex-col items-center justify-center shadow-inner overflow-hidden">
-                <AnimatePresence mode="wait">
-                  {isResting ? (
-                    <motion.div key="rest" initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 1.2, opacity: 0 }} className="text-center">
-                      <p className="text-[10px] font-black text-[#FF7222] uppercase tracking-[0.6em] mb-4">Recovery Engine</p>
-                      <h3 className="text-[10rem] font-[1000] italic leading-[0.8] tabular-nums text-white tracking-tighter">{restTimer}</h3>
-                      <div className="flex justify-center gap-3 mt-8">
-                        <button onClick={() => setRestTimer(t => t + 15)} className="bg-white/5 hover:bg-white hover:text-black w-12 h-12 rounded-full font-black text-xs transition-all">+15</button>
-                        <button onClick={() => setRestTimer(t => Math.max(0, t - 15))} className="bg-white/5 hover:bg-red-500 w-12 h-12 rounded-full font-black text-xs transition-all">-15</button>
-                      </div>
-                    </motion.div>
+              {/* Dynamic HUD Display (Timer and Media Side by Side) */}
+              <div className="grid grid-cols-2 gap-6">
+                {/* Timer Section */}
+                <div className="relative aspect-square bg-gradient-to-br from-white/[0.04] to-transparent rounded-[3rem] border border-white/10 flex flex-col items-center justify-center shadow-inner overflow-hidden">
+                  <AnimatePresence mode="wait">
+                    {isResting ? (
+                      <motion.div key="rest" initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 1.2, opacity: 0 }} className="text-center">
+                        <p className="text-[8px] font-black text-[#FF7222] uppercase tracking-[0.4em] mb-2">Recovery Engine</p>
+                        <h3 className="text-6xl font-[1000] italic leading-[0.8] tabular-nums text-white tracking-tighter">{restTimer}</h3>
+                        <div className="flex justify-center gap-2 mt-4">
+                          <button onClick={() => setRestTimer(t => t + 15)} className="bg-white/5 hover:bg-white hover:text-black w-8 h-8 rounded-full font-black text-xs transition-all">+15</button>
+                          <button onClick={() => setRestTimer(t => Math.max(0, t - 15))} className="bg-white/5 hover:bg-red-500 w-8 h-8 rounded-full font-black text-xs transition-all">-15</button>
+                        </div>
+                      </motion.div>
+                    ) : (
+                      <motion.div key="work" initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 1.2, opacity: 0 }} className="text-center">
+                        <p className="text-[8px] font-black text-green-500 uppercase tracking-[0.4em] mb-2">Engagement Time</p>
+                        <h3 className="text-6xl font-[1000] italic leading-none tabular-nums text-white tracking-tighter">{formatTime(seconds)}</h3>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                  {isResting && <motion.div animate={{ opacity: [0.1, 0.2, 0.1] }} transition={{ repeat: Infinity, duration: 1.5 }} className="absolute inset-0 bg-[#FF7222]/10" />}
+                </div>
+
+                {/* Media Section */}
+                <div className="relative aspect-square bg-gradient-to-br from-white/[0.04] to-transparent rounded-[3rem] border border-white/10 overflow-hidden shadow-inner">
+                  {workout.videoUrl ? (
+                    <video 
+                      src={workout.videoUrl} 
+                      autoPlay 
+                      loop 
+                      muted 
+                      className="w-full h-full object-cover rounded-[3rem]"
+                    />
+                  ) : workout.imageUrl ? (
+                    <img 
+                      src={workout.imageUrl} 
+                      alt={workout.name}
+                      className="w-full h-full object-cover rounded-[3rem]"
+                    />
                   ) : (
-                    <motion.div key="work" initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 1.2, opacity: 0 }} className="text-center">
-                      <p className="text-[10px] font-black text-green-500 uppercase tracking-[0.6em] mb-4 tracking-[0.4em]">Engagement Time</p>
-                      <h3 className="text-9xl font-[1000] italic leading-none tabular-nums text-white tracking-tighter">{formatTime(seconds)}</h3>
-                    </motion.div>
+                    <div className="w-full h-full flex items-center justify-center text-gray-500">
+                      <div className="text-center">
+                        <div className="text-4xl mb-2">💪</div>
+                        <p className="text-xs font-black uppercase tracking-wider">No Media</p>
+                      </div>
+                    </div>
                   )}
-                </AnimatePresence>
-                {isResting && <motion.div animate={{ opacity: [0.1, 0.2, 0.1] }} transition={{ repeat: Infinity, duration: 1.5 }} className="absolute inset-0 bg-[#FF7222]/10" />}
+                  {/* Media overlay label */}
+                  <div className="absolute top-4 left-4 bg-black/50 px-3 py-1 rounded-full">
+                    <p className="text-[8px] font-black text-white uppercase tracking-wider">Exercise Demo</p>
+                  </div>
+                </div>
               </div>
 
               {/* Stats Adjustment Grid */}
