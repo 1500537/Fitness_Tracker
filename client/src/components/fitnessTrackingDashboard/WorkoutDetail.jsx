@@ -1,18 +1,49 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useAppContext } from '../../context/useAppContext';
 
 const WorkoutDetail = ({ workout, onClose, onFinish }) => {
+  const { drills } = useAppContext();
   const [seconds, setSeconds] = useState(0);
   const [restTimer, setRestTimer] = useState(60);
   const [isResting, setIsResting] = useState(false);
   const [currentSet, setCurrentSet] = useState(1);
   const [isLiveEditing, setIsLiveEditing] = useState(false);
-  const [isFinished, setIsFinished] = useState(false); // Success Animation State
+  const [isFinished, setIsFinished] = useState(false);
   
   const [liveSets, setLiveSets] = useState(workout.sets);
   const [liveReps, setLiveReps] = useState(workout.reps);
 
   const totalSets = parseInt(liveSets) || 1;
+
+  // Get drill media URL for the workout
+  const getDrillMedia = (workoutName, workoutCategory) => {
+    const drill = drills.find(d => 
+      d.name.toLowerCase() === workoutName.toLowerCase() && 
+      d.category.toLowerCase() === workoutCategory.toLowerCase()
+    );
+    return drill ? { videoUrl: drill.videoUrl, mediaType: drill.mediaType } : null;
+  };
+
+  // Resolve stream URL
+  const resolveStreamUrl = (url) => {
+    if (!url) return '';
+    if (url.startsWith('data:')) return url;
+    
+    let processedUrl = url.trim();
+    if (processedUrl.includes('drive.google.com') || processedUrl.includes('share.google')) {
+      const driveIdMatch = processedUrl.match(/(?:\/d\/|id=|share\.google\/)([\w-]+)/);
+      if (driveIdMatch && driveIdMatch[1]) {
+        return `https://drive.google.com/uc?export=download&id=${driveIdMatch[1]}`;
+      }
+    }
+    if (processedUrl.includes('dropbox.com')) {
+      return processedUrl.replace('www.dropbox.com', 'dl.dropboxusercontent.com').replace('?dl=0', '');
+    }
+    return processedUrl;
+  };
+
+  const drillMedia = getDrillMedia(workout.name, workout.category);
 
   useEffect(() => {
     let interval = null;
@@ -56,7 +87,7 @@ const WorkoutDetail = ({ workout, onClose, onFinish }) => {
   return (
     <motion.div 
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[100] flex items-center justify-center p-4 backdrop-blur-[80px] bg-black/95 overflow-hidden"
+      className="fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-4 backdrop-blur-[80px] bg-black/95 overflow-hidden"
     >
       <AnimatePresence>
         {isFinished ? (
@@ -70,16 +101,16 @@ const WorkoutDetail = ({ workout, onClose, onFinish }) => {
               initial={{ rotate: -180, scale: 0 }}
               animate={{ rotate: 0, scale: 1 }}
               transition={{ type: "spring", stiffness: 100 }}
-              className="w-32 h-32 bg-green-500 rounded-full mx-auto flex items-center justify-center shadow-[0_0_50px_#22c55e]"
+              className="w-20 h-20 sm:w-32 sm:h-32 bg-green-500 rounded-full mx-auto flex items-center justify-center shadow-[0_0_50px_#22c55e]"
             >
-              <span className="text-6xl text-white">✓</span>
+              <span className="text-4xl sm:text-6xl text-white">✓</span>
             </motion.div>
             
             <motion.h2 
               initial={{ y: 20, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ delay: 0.4 }}
-              className="text-7xl font-[1000] italic uppercase tracking-tighter text-white mt-8 leading-none"
+              className="text-4xl sm:text-5xl md:text-7xl font-[1000] italic uppercase tracking-tighter text-white mt-4 sm:mt-8 leading-none"
             >
               MISSION <br /> <span className="text-green-500">ACCOMPLISHED</span>
             </motion.h2>
@@ -88,7 +119,7 @@ const WorkoutDetail = ({ workout, onClose, onFinish }) => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.8 }}
-              className="mt-6 text-gray-500 font-black uppercase tracking-[0.5em] text-[10px]"
+              className="mt-4 sm:mt-6 text-gray-500 font-black uppercase tracking-[0.3em] sm:tracking-[0.5em] text-[8px] sm:text-[10px]"
             >
               Neural Pathways Secured • Time: {formatTime(seconds)}
             </motion.div>
@@ -104,46 +135,46 @@ const WorkoutDetail = ({ workout, onClose, onFinish }) => {
           /* --- STANDARD WORKOUT HUD --- */
           <motion.div 
             initial={{ scale: 0.9, y: 50, rotateX: 10 }} animate={{ scale: 1, y: 0, rotateX: 0 }} exit={{ scale: 0.8, opacity: 0 }}
-            className="bg-[#080808] border border-white/10 text-white w-full max-w-2xl rounded-[3.5rem] overflow-hidden relative shadow-[0_0_100px_rgba(255,114,34,0.1)]"
+            className="bg-[#080808] border border-white/10 text-white w-full max-w-sm sm:max-w-2xl md:max-w-4xl lg:max-w-6xl rounded-[2rem] sm:rounded-[3.5rem] overflow-hidden relative shadow-[0_0_100px_rgba(255,114,34,0.1)]"
           >
             {/* Header section with Modify logic */}
-            <div className="p-8 pb-0 flex justify-between items-start">
-              <div className="space-y-1">
+            <div className="p-4 sm:p-6 md:p-8 pb-0 flex flex-col sm:flex-row justify-between items-start gap-4">
+              <div className="space-y-1 flex-1">
                 <div className="flex gap-1 mb-2">
                   {Array.from({ length: totalSets }).map((_, i) => (
-                    <div key={i} className={`h-1.5 w-8 rounded-full transition-all duration-500 ${i + 1 < currentSet ? 'bg-green-500 shadow-[0_0_15px_#22c55e]' : i + 1 === currentSet ? 'bg-[#FF7222] shadow-[0_0_15px_#FF7222]' : 'bg-white/10'}`} />
+                    <div key={i} className={`h-1 sm:h-1.5 w-4 sm:w-8 rounded-full transition-all duration-500 ${i + 1 < currentSet ? 'bg-green-500 shadow-[0_0_15px_#22c55e]' : i + 1 === currentSet ? 'bg-[#FF7222] shadow-[0_0_15px_#FF7222]' : 'bg-white/10'}`} />
                   ))}
                 </div>
-                <h2 className="text-4xl font-[1000] italic uppercase tracking-tighter leading-none">{workout.name}</h2>
-                <p className="text-[10px] font-black text-[#FF7222] uppercase tracking-[0.3em]">Protocol Phase: Set {currentSet}</p>
+                <h2 className="text-2xl sm:text-3xl md:text-4xl font-[1000] italic uppercase tracking-tighter leading-none">{workout.name}</h2>
+                <p className="text-[8px] sm:text-[10px] font-black text-[#FF7222] uppercase tracking-[0.2em] sm:tracking-[0.3em]">Protocol Phase: Set {currentSet}</p>
               </div>
               <button 
                 onClick={() => setIsLiveEditing(!isLiveEditing)} 
-                className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${isLiveEditing ? 'bg-green-500 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}
+                className={`px-3 sm:px-6 py-2 sm:py-3 rounded-xl sm:rounded-2xl text-[8px] sm:text-[10px] font-black uppercase tracking-widest transition-all ${isLiveEditing ? 'bg-green-500 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}
               >
                 {isLiveEditing ? 'Confirm Intel' : 'Tactical Edit'}
               </button>
             </div>
 
-            <div className="p-8 pt-6 space-y-6">
+            <div className="p-4 sm:p-6 md:p-8 pt-4 sm:pt-6 space-y-4 sm:space-y-6">
               {/* Dynamic HUD Display (Timer and Media Side by Side) */}
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
                 {/* Timer Section */}
-                <div className="relative aspect-square bg-gradient-to-br from-white/[0.04] to-transparent rounded-[3rem] border border-white/10 flex flex-col items-center justify-center shadow-inner overflow-hidden">
+                <div className="relative aspect-square bg-gradient-to-br from-white/[0.04] to-transparent rounded-[2rem] sm:rounded-[3rem] border border-white/10 flex flex-col items-center justify-center shadow-inner overflow-hidden">
                   <AnimatePresence mode="wait">
                     {isResting ? (
                       <motion.div key="rest" initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 1.2, opacity: 0 }} className="text-center">
-                        <p className="text-[8px] font-black text-[#FF7222] uppercase tracking-[0.4em] mb-2">Recovery Engine</p>
-                        <h3 className="text-6xl font-[1000] italic leading-[0.8] tabular-nums text-white tracking-tighter">{restTimer}</h3>
-                        <div className="flex justify-center gap-2 mt-4">
-                          <button onClick={() => setRestTimer(t => t + 15)} className="bg-white/5 hover:bg-white hover:text-black w-8 h-8 rounded-full font-black text-xs transition-all">+15</button>
-                          <button onClick={() => setRestTimer(t => Math.max(0, t - 15))} className="bg-white/5 hover:bg-red-500 w-8 h-8 rounded-full font-black text-xs transition-all">-15</button>
+                        <p className="text-[6px] sm:text-[8px] font-black text-[#FF7222] uppercase tracking-[0.4em] mb-2">Recovery Engine</p>
+                        <h3 className="text-4xl sm:text-5xl md:text-6xl font-[1000] italic leading-[0.8] tabular-nums text-white tracking-tighter">{restTimer}</h3>
+                        <div className="flex justify-center gap-2 mt-2 sm:mt-4">
+                          <button onClick={() => setRestTimer(t => t + 15)} className="bg-white/5 hover:bg-white hover:text-black w-6 h-6 sm:w-8 sm:h-8 rounded-full font-black text-xs transition-all">+15</button>
+                          <button onClick={() => setRestTimer(t => Math.max(0, t - 15))} className="bg-white/5 hover:bg-red-500 w-6 h-6 sm:w-8 sm:h-8 rounded-full font-black text-xs transition-all">-15</button>
                         </div>
                       </motion.div>
                     ) : (
                       <motion.div key="work" initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 1.2, opacity: 0 }} className="text-center">
-                        <p className="text-[8px] font-black text-green-500 uppercase tracking-[0.4em] mb-2">Engagement Time</p>
-                        <h3 className="text-6xl font-[1000] italic leading-none tabular-nums text-white tracking-tighter">{formatTime(seconds)}</h3>
+                        <p className="text-[6px] sm:text-[8px] font-black text-green-500 uppercase tracking-[0.4em] mb-2">Engagement Time</p>
+                        <h3 className="text-4xl sm:text-5xl md:text-6xl font-[1000] italic leading-none tabular-nums text-white tracking-tighter">{formatTime(seconds)}</h3>
                       </motion.div>
                     )}
                   </AnimatePresence>
@@ -152,20 +183,31 @@ const WorkoutDetail = ({ workout, onClose, onFinish }) => {
 
                 {/* Media Section */}
                 <div className="relative aspect-square bg-gradient-to-br from-white/[0.04] to-transparent rounded-[3rem] border border-white/10 overflow-hidden shadow-inner">
-                  {workout.videoUrl ? (
-                    <video 
-                      src={workout.videoUrl} 
-                      autoPlay 
-                      loop 
-                      muted 
-                      className="w-full h-full object-cover rounded-[3rem]"
-                    />
-                  ) : workout.imageUrl ? (
-                    <img 
-                      src={workout.imageUrl} 
-                      alt={workout.name}
-                      className="w-full h-full object-cover rounded-[3rem]"
-                    />
+                  {drillMedia && drillMedia.videoUrl ? (
+                    <div className="w-full h-full relative">
+                      {drillMedia.mediaType === 'video' ? (
+                        <video
+                          src={resolveStreamUrl(drillMedia.videoUrl)}
+                          autoPlay
+                          muted
+                          loop
+                          playsInline
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <img
+                          src={resolveStreamUrl(drillMedia.videoUrl)}
+                          className="w-full h-full object-cover"
+                          alt={workout.name}
+                        />
+                      )}
+                      {/* Gradient overlay for readability */}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-black/10" />
+                      {/* Media overlay label */}
+                      <div className="absolute top-4 left-4 bg-black/50 px-3 py-1 rounded-full">
+                        <p className="text-[8px] font-black text-white uppercase tracking-wider">Exercise Demo</p>
+                      </div>
+                    </div>
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-gray-500">
                       <div className="text-center">
@@ -174,10 +216,6 @@ const WorkoutDetail = ({ workout, onClose, onFinish }) => {
                       </div>
                     </div>
                   )}
-                  {/* Media overlay label */}
-                  <div className="absolute top-4 left-4 bg-black/50 px-3 py-1 rounded-full">
-                    <p className="text-[8px] font-black text-white uppercase tracking-wider">Exercise Demo</p>
-                  </div>
                 </div>
               </div>
 

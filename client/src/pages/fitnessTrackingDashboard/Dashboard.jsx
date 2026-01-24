@@ -6,6 +6,26 @@ import { useAppContext } from '../../context/useAppContext';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '@clerk/clerk-react';
 
+// Network connectivity hook
+const useNetworkStatus = () => {
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+  
+  return isOnline;
+};
+
 // --- ELITE ACCESS MODAL ---
 const EliteAccessModal = ({ isOpen, onClose, onConfirm, userPricing }) => {
   if (!isOpen) return null;
@@ -956,6 +976,8 @@ const EliteDashboard = () => {
   const location = useLocation();
   const [showSuccessNotification, setShowSuccessNotification] = useState(false);
   const [showEliteModal, setShowEliteModal] = useState(false);
+  const isOnline = useNetworkStatus();
+  const [wasOffline, setWasOffline] = useState(false);
 
   // Get pricing from user context, not navigation state
   const pricing = user?.pricing || 'starter';
@@ -963,6 +985,15 @@ const EliteDashboard = () => {
   useEffect(() => {
     fetchDashboard?.();
   }, [fetchDashboard]);
+
+  // Auto-refresh when connection is restored
+  useEffect(() => {
+    if (isOnline && wasOffline) {
+      // Connection restored, refresh the page
+      window.location.reload();
+    }
+    setWasOffline(!isOnline);
+  }, [isOnline, wasOffline]);
 
   // Elite Access Modal Logic - Show only once when navigating to dashboard
   useEffect(() => {
@@ -1064,9 +1095,17 @@ const EliteDashboard = () => {
     <div className="min-h-screen bg-[#020202] text-white flex flex-col items-center justify-center p-10 text-center">
       <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="p-12 border border-red-500/20 bg-red-500/5 rounded-[3rem] backdrop-blur-xl">
         <h2 className="text-5xl font-[1000] italic uppercase mb-6 tracking-tighter text-red-500">Signal_Lost</h2>
-        <p className="text-gray-500 max-w-sm mb-10 text-xs font-bold uppercase tracking-widest leading-loose">Neural uplink disconnected. Database access restricted.</p>
-        <button onClick={() => fetchDashboard?.()} className="group relative px-12 py-5 bg-white text-black font-black uppercase italic rounded-2xl overflow-hidden">
-          <span className="relative z-10">Re-Authorize_Uplink</span>
+        <p className="text-gray-500 max-w-sm mb-10 text-xs font-bold uppercase tracking-widest leading-loose">
+          {!isOnline ? 'Network connection lost. Attempting auto-refresh...' : 'Neural uplink disconnected. Database access restricted.'}
+        </p>
+        {!isOnline && (
+          <div className="mb-6 flex items-center justify-center gap-2">
+            <div className="w-2 h-2 bg-yellow-500 rounded-full animate-ping"></div>
+            <span className="text-xs text-yellow-500 font-bold uppercase tracking-wider">Auto-refresh on reconnect</span>
+          </div>
+        )}
+        <button onClick={() => window.location.reload()} className="group relative px-12 py-5 bg-white text-black font-black uppercase italic rounded-2xl overflow-hidden">
+          <span className="relative z-10">{!isOnline ? 'Manual_Refresh' : 'Re-Authorize_Uplink'}</span>
           <div className="absolute inset-0 bg-[#FF7222] translate-y-full group-hover:translate-y-0 transition-transform duration-500" />
         </button>
       </motion.div>
@@ -1150,9 +1189,19 @@ const EliteDashboard = () => {
               <h4 className="text-4xl md:text-5xl font-[1000] italic text-white uppercase leading-none tracking-tighter">
                 {dashboard.stats?.completedWorkouts || 0} <span className="text-[#FF7222]">Live</span>
               </h4>
-              <div className="flex items-center gap-3 mt-5 px-4 py-2 bg-green-500/10 rounded-full border border-green-500/20 w-fit">
-                 <div className="w-2 h-2 rounded-full bg-green-500 animate-ping" />
-                 <span className="text-[9px] font-black text-green-500 uppercase">Uplink Stable</span>
+              <div className={`flex items-center gap-3 mt-5 px-4 py-2 rounded-full border w-fit transition-all duration-300 ${
+                isOnline 
+                  ? 'bg-green-500/10 border-green-500/20' 
+                  : 'bg-red-500/10 border-red-500/20'
+              }`}>
+                 <div className={`w-2 h-2 rounded-full animate-ping ${
+                   isOnline ? 'bg-green-500' : 'bg-red-500'
+                 }`} />
+                 <span className={`text-[9px] font-black uppercase ${
+                   isOnline ? 'text-green-500' : 'text-red-500'
+                 }`}>
+                   {isOnline ? 'Uplink Stable' : 'Signal Lost'}
+                 </span>
               </div>
             </div>
           </SpatialCard>

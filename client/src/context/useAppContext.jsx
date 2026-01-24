@@ -7,6 +7,10 @@ const AppContext = createContext();
 export const AppProvider = ({ children }) => {
   const { userId, isLoaded } = useAuth();
   const { signOut } = useClerk();
+  
+  // Check if socket is enabled
+  const isSocketEnabled = import.meta.env.VITE_ENABLE_SOCKET === 'true';
+  
   const [workouts, setWorkouts] = useState([]);
   const [nutrition, setNutrition] = useState([]);
   const [progress, setProgress] = useState([]);
@@ -98,7 +102,7 @@ export const AppProvider = ({ children }) => {
   // Socket for real-time updates with error handling
   useEffect(() => {
     // Socket.IO disabled via environment variable
-    if (!import.meta.env.VITE_ENABLE_SOCKET || import.meta.env.VITE_ENABLE_SOCKET !== 'true') {
+    if (!isSocketEnabled) {
       console.log('Socket.IO disabled via environment variable');
       return;
     }
@@ -119,6 +123,22 @@ export const AppProvider = ({ children }) => {
         newSocket.on('connect', () => {
           console.log('Socket connected');
           newSocket.emit('join-user-room', userId);
+        });
+
+        // Progress real-time events
+        newSocket.on('progress-added', (progress) => {
+          setProgress(prev => {
+            const filtered = prev.filter(p => p._id !== progress._id);
+            return [progress, ...filtered];
+          });
+        });
+
+        newSocket.on('progress-updated', (progress) => {
+          setProgress(prev => prev.map(p => p._id === progress._id ? progress : p));
+        });
+
+        newSocket.on('progress-deleted', ({ id }) => {
+          setProgress(prev => prev.filter(p => p._id !== id));
         });
 
         newSocket.on('connect_error', (error) => {
@@ -142,7 +162,7 @@ export const AppProvider = ({ children }) => {
         }
       }
     }
-  }, [isLoaded, userId]);
+  }, [isLoaded, userId, isSocketEnabled]);
 
   // Fetch workouts for the current user (with caching)
   const fetchWorkouts = useCallback(async () => {
@@ -377,6 +397,10 @@ export const AppProvider = ({ children }) => {
   const fetchProgress = async () => {
     if (!userId) return;
 
+    console.log('=== FRONTEND PROGRESS FETCH ===');
+    console.log('Current logged in user ID:', userId);
+    console.log('User ID type:', typeof userId);
+    
     setLoading(true);
     try {
       const response = await fetch(`${API_BASE}/progress`, {
@@ -387,20 +411,28 @@ export const AppProvider = ({ children }) => {
       });
 
       const data = await response.json();
+      console.log('Response from backend:', {
+        success: data.success,
+        totalEntries: data.progress?.length || 0,
+        message: data.message
+      });
+      
       if (data.success) {
-        // Ensure uniqueness by filtering out duplicates based on _id
-        const uniqueProgress = data.progress.filter((item, index, arr) => 
-          arr.findIndex(p => p._id === item._id) === index
-        );
-        setProgress(uniqueProgress);
+        console.log('ALL PROGRESS DATA FOR USER:', data.progress);
+        const allProgress = data.progress.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        console.log('Setting progress state with', allProgress.length, 'entries');
+        setProgress(allProgress);
       } else {
+        console.error('Backend returned error:', data.message);
         setError(data.message);
       }
     } catch (err) {
+      console.error('Network error:', err);
       setError(err.message);
     } finally {
       setLoading(false);
     }
+    console.log('=== END FRONTEND FETCH ===');
   };
 
   // Fetch goals
@@ -615,6 +647,8 @@ export const AppProvider = ({ children }) => {
   const addProgressEntry = async (progressData) => {
     if (!userId) return null;
 
+    console.log('Frontend: Adding progress entry:', progressData);
+
     try {
       const response = await fetch(`${API_BASE}/progress`, {
         method: 'POST',
@@ -626,14 +660,29 @@ export const AppProvider = ({ children }) => {
       });
 
       const data = await response.json();
+      console.log('Frontend: Add progress response:', data);
+      
       if (data.success) {
-        // Don't update state here - let socket event handle it
+        // If socket is disabled, update state immediately
+        if (!isSocketEnabled) {
+          console.log('Frontend: Updating state immediately (socket disabled)');
+          setProgress(prev => {
+            console.log('Frontend: Previous progress count:', prev.length);
+            // Remove any duplicate and add new entry at the beginning
+            const filtered = prev.filter(p => p._id !== data.progress._id);
+            const newProgress = [data.progress, ...filtered].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+            console.log('Frontend: New progress count:', newProgress.length);
+            return newProgress;
+          });
+        }
         return data.progress;
       } else {
+        console.error('Frontend: Add progress failed:', data.message);
         setError(data.message);
         return null;
       }
     } catch (err) {
+      console.error('Frontend: Add progress error:', err);
       setError(err.message);
       return null;
     }
@@ -671,6 +720,8 @@ export const AppProvider = ({ children }) => {
   const updateProgressEntry = async (id, progressData) => {
     if (!userId) return null;
 
+    console.log('Frontend: Updating progress entry:', id, 'with data:', progressData);
+
     try {
       const response = await fetch(`${API_BASE}/progress/${id}`, {
         method: 'PUT',
@@ -682,14 +733,27 @@ export const AppProvider = ({ children }) => {
       });
 
       const data = await response.json();
+      console.log('Frontend: Update progress response:', data);
+      
       if (data.success) {
-        // Don't update state here - let socket event handle it
+        // If socket is disabled, update state immediately
+        if (!isSocketEnabled) {
+          console.log('Frontend: Updating state immediately (socket disabled)');
+          setProgress(prev => {
+            const updated = prev.map(p => p._id === id ? data.progress : p)
+              .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+            console.log('Frontend: Progress updated in state');
+            return updated;
+          });
+        }
         return data.progress;
       } else {
+        console.error('Frontend: Update progress failed:', data.message);
         setError(data.message);
         return null;
       }
     } catch (err) {
+      console.error('Frontend: Update progress error:', err);
       setError(err.message);
       return null;
     }
@@ -698,6 +762,8 @@ export const AppProvider = ({ children }) => {
   // Delete progress entry
   const deleteProgressEntry = async (id) => {
     if (!userId) return null;
+
+    console.log('Frontend: Deleting progress entry:', id);
 
     try {
       const response = await fetch(`${API_BASE}/progress/${id}`, {
@@ -709,14 +775,26 @@ export const AppProvider = ({ children }) => {
       });
 
       const data = await response.json();
+      console.log('Frontend: Delete progress response:', data);
+      
       if (data.success) {
-        // Don't update state here - let socket event handle it
+        // If socket is disabled, update state immediately
+        if (!isSocketEnabled) {
+          console.log('Frontend: Removing from state immediately (socket disabled)');
+          setProgress(prev => {
+            const filtered = prev.filter(p => p._id !== id);
+            console.log('Frontend: Progress count after delete:', filtered.length);
+            return filtered;
+          });
+        }
         return true;
       } else {
+        console.error('Frontend: Delete progress failed:', data.message);
         setError(data.message);
         return false;
       }
     } catch (err) {
+      console.error('Frontend: Delete progress error:', err);
       setError(err.message);
       return false;
     }
@@ -1052,6 +1130,8 @@ export const AppProvider = ({ children }) => {
 
       const data = await response.json();
       if (data.success) {
+        // Update categories state immediately
+        setCategories(prev => prev.filter(cat => cat._id !== id));
         return { success: true, message: data.message };
       } else {
         setError(data.message);

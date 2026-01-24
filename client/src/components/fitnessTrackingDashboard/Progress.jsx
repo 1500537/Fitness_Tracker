@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, Radar, RadarChart, PolarGrid, PolarAngleAxis, CartesianGrid, ReferenceLine, BarChart, Bar, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
 import { Lock, Crown, Star, Edit, Trash2, Activity, Utensils, TrendingUp, Calendar, Target, Zap, BarChart3, PieChart as PieChartIcon, ChevronDown, ChevronUp } from 'lucide-react';
@@ -99,6 +99,9 @@ const ProgressModule = () => {
   const [showAllEntries, setShowAllEntries] = useState(false);
   const [lastProcessedWorkouts, setLastProcessedWorkouts] = useState(null);
   const [lastProcessedNutrition, setLastProcessedNutrition] = useState(null);
+  const [selectedDate, setSelectedDate] = useState('');
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const dateInputRef = useRef(null);
   // Enhanced Real-time Custom Tooltip
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
@@ -446,7 +449,7 @@ const ProgressModule = () => {
                   <TrendingUp className="w-6 h-6 text-[#10B981]" />
                   <h3 className="text-xl font-black text-white uppercase">Daily Calories</h3>
                 </div>
-                <ResponsiveContainer width="100%" height={300}>
+                <ResponsiveContainer width="100%" height={300} minWidth={300} minHeight={200}>
                   <AreaChart data={nutritionAnalytics.dailyChart} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                     <defs>
                       <linearGradient id="caloriesGradient" x1="0" y1="0" x2="0" y2="1">
@@ -497,7 +500,7 @@ const ProgressModule = () => {
                   <PieChartIcon className="w-6 h-6 text-[#F59E0B]" />
                   <h3 className="text-xl font-black text-white uppercase">Macro Distribution</h3>
                 </div>
-                <ResponsiveContainer width="100%" height={300}>
+                <ResponsiveContainer width="100%" height={300} minWidth={300} minHeight={200}>
                   <PieChart>
                     <Pie
                       data={nutritionAnalytics.macroChart}
@@ -535,7 +538,7 @@ const ProgressModule = () => {
                   <BarChart3 className="w-6 h-6 text-[#8B5CF6]" />
                   <h3 className="text-xl font-black text-white uppercase">Meal Distribution</h3>
                 </div>
-                <ResponsiveContainer width="100%" height={300}>
+                <ResponsiveContainer width="100%" height={300} minWidth={300} minHeight={200}>
                   <BarChart data={nutritionAnalytics.mealChart} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                     <XAxis 
@@ -787,6 +790,19 @@ const ProgressModule = () => {
       if (timeoutId) clearTimeout(timeoutId);
     };
   }, [workouts, nutrition, processWorkoutAnalytics, processNutritionAnalytics]);
+
+  // Filter history by selected date
+  const filteredHistory = selectedDate 
+    ? history.filter(entry => {
+        const entryDate = new Date(entry.date);
+        const selectedDateObj = new Date(selectedDate);
+        
+        // Compare dates by year, month, and day only (ignore time)
+        return entryDate.getFullYear() === selectedDateObj.getFullYear() &&
+               entryDate.getMonth() === selectedDateObj.getMonth() &&
+               entryDate.getDate() === selectedDateObj.getDate();
+      })
+    : history;
 
 
 
@@ -1048,12 +1064,11 @@ const ProgressModule = () => {
       height: parseFloat(form.height)
     };
 
-    const result = await updateProgressEntry(editingEntry.id, progressData);
+    const result = await updateProgressEntry(editingEntry._id, progressData);
     if (result) {
       setEditingEntry(null);
       setForm({ weight: '', bench: '', run: '', waist: '', neck: '', height: '175' });
       setValidationErrors({});
-      fetchProgress();
     }
   };
 
@@ -1062,7 +1077,6 @@ const ProgressModule = () => {
     const result = await deleteProgressEntry(id);
     if (result) {
       setShowDeleteConfirm(null);
-      fetchProgress();
     }
   };
 
@@ -1295,7 +1309,7 @@ const ProgressModule = () => {
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
         <div className="xl:col-span-4 bg-[#0A0A0A] border border-white/5 rounded-[4rem] p-10 flex flex-col justify-between shadow-2xl">
           <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={300} minHeight={200}>
               <RadarChart data={[
                 { subject: 'Weight', A: compareSelection[0].weight, B: compareSelection[1].weight },
                 { subject: 'Bench', A: compareSelection[0].bench, B: compareSelection[1].bench },
@@ -1364,7 +1378,7 @@ const ProgressModule = () => {
             transition={{ duration: 0.5 }}
             className="h-96"
           >
-            <ResponsiveContainer width="100%" height="100%" minWidth={300} minHeight={200}>
+            <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={chartData}>
                 <defs>
                   <linearGradient id={`color${activeTab}`} x1="0" y1="0" x2="0" y2="1">
@@ -1462,78 +1476,202 @@ const ProgressModule = () => {
       {/* RECENT ENTRIES (Real-time update with View More) */}
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="border-l-4 border-[#FF7222] pl-6">
             <h3 className="text-4xl font-[1000] italic uppercase leading-[0.8] tracking-tighter text-white">Recent<br/><span className="text-[#FF7222]">Entries</span></h3>
             <p className="text-[10px] font-bold text-gray-500 uppercase mt-2 tracking-widest">Click entries for real-time analysis</p>
           </div>
-          <div className="text-xs text-gray-400 uppercase font-bold">
-            {history.length} Total Entries
+          
+          <div className="flex items-center gap-4">
+            {/* Date Filter */}
+            <div className="relative">
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => dateInputRef.current?.showPicker()}
+                className="flex items-center gap-2 bg-gradient-to-r from-[#FF7222]/20 to-[#FF7222]/10 border-2 border-[#FF7222]/30 hover:border-[#FF7222]/60 px-4 py-2 rounded-2xl transition-all backdrop-blur-sm"
+              >
+                <Calendar className="w-4 h-4 text-[#FF7222]" />
+                <span className="text-white font-bold text-sm">
+                  {selectedDate ? new Date(selectedDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : 'All Dates'}
+                </span>
+                <ChevronDown className="w-4 h-4 text-[#FF7222]" />
+              </motion.button>
+              
+              {/* Hidden Date Input */}
+              <input
+                ref={dateInputRef}
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="absolute opacity-0 pointer-events-none"
+              />
+              
+              {/* Clear Button */}
+              {selectedDate && (
+                <motion.button
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  onClick={() => setSelectedDate('')}
+                  className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 hover:bg-red-600 rounded-full flex items-center justify-center text-white text-xs font-bold transition-colors"
+                >
+                  ×
+                </motion.button>
+              )}
+            </div>
+            
+            <div className="text-xs text-gray-400 uppercase font-bold">
+              {filteredHistory.length} {selectedDate ? 'Filtered' : 'Total'} Entries
+            </div>
           </div>
         </div>
 
         {/* Entries Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-          {history.slice(0, showAllEntries ? history.length : 4).map((node) => (
+        {filteredHistory.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
+            {filteredHistory.map((node) => (
             <motion.div 
               layout 
               key={node.id} 
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="bg-[#0A0A0A] border border-white/5 p-8 rounded-[3rem] hover:border-[#FF7222]/40 transition-all cursor-pointer group relative"
+              className="relative bg-gradient-to-br from-gray-900/80 via-black/90 to-gray-900/80 backdrop-blur-xl border border-white/10 hover:border-[#FF7222]/40 rounded-2xl sm:rounded-3xl p-4 sm:p-6 transition-all duration-300 cursor-pointer group overflow-hidden"
+              whileHover={{ scale: 1.02, y: -5 }}
+              whileTap={{ scale: 0.98 }}
             >
+              {/* Gradient Overlay */}
+              <div className="absolute inset-0 bg-gradient-to-br from-[#FF7222]/5 via-transparent to-[#8B5CF6]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-2xl sm:rounded-3xl"></div>
+              
               {/* Edit/Delete buttons */}
-              <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button 
+              <div className="absolute top-2 right-2 sm:top-4 sm:right-4 flex gap-1 sm:gap-2 opacity-0 group-hover:opacity-100 transition-all duration-300 z-10">
+                <motion.button 
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
                   onClick={(e) => { e.stopPropagation(); editProgressEntry(node); }}
-                  className="p-2 bg-blue-500/20 hover:bg-blue-500/40 rounded-xl transition-colors"
+                  className="p-1.5 sm:p-2 bg-blue-500/20 hover:bg-blue-500/40 rounded-lg sm:rounded-xl transition-colors backdrop-blur-sm border border-blue-500/30"
                 >
-                  <Edit size={16} className="text-blue-400" />
-                </button>
-                <button 
+                  <Edit size={12} className="text-blue-400 sm:w-4 sm:h-4" />
+                </motion.button>
+                <motion.button 
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
                   onClick={(e) => { e.stopPropagation(); setShowDeleteConfirm(node); }}
-                  className="p-2 bg-red-500/20 hover:bg-red-500/40 rounded-xl transition-colors"
+                  className="p-1.5 sm:p-2 bg-red-500/20 hover:bg-red-500/40 rounded-lg sm:rounded-xl transition-colors backdrop-blur-sm border border-red-500/30"
                 >
-                  <Trash2 size={16} className="text-red-400" />
-                </button>
+                  <Trash2 size={12} className="text-red-400 sm:w-4 sm:h-4" />
+                </motion.button>
               </div>
               
-              <div onClick={() => setCompareSelection([compareSelection[1], node])} className="flex justify-between items-start mb-6">
-                <span className="text-[10px] font-black text-gray-600 uppercase tracking-widest">{node.date}</span>
-                <span className="text-[#FF7222] font-black italic text-xl">{node.score}%</span>
+              {/* Content */}
+              <div onClick={() => setCompareSelection([compareSelection[1], node])} className="relative z-[1]">
+                {/* Header */}
+                <div className="flex justify-between items-start mb-3 sm:mb-4">
+                  <div className="flex flex-col">
+                    <span className="text-[8px] sm:text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">{node.date}</span>
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-[#FF7222] rounded-full animate-pulse"></div>
+                      <span className="text-[8px] sm:text-[10px] font-bold text-[#FF7222] uppercase tracking-wider">Live Data</span>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="flex items-center gap-1 sm:gap-2">
+                      <Zap className="w-3 h-3 sm:w-4 sm:h-4 text-[#8B5CF6]" />
+                      <span className="text-lg sm:text-2xl font-[1000] italic text-[#8B5CF6] tracking-tighter">{node.score}%</span>
+                    </div>
+                    <p className="text-[8px] sm:text-[10px] font-bold text-gray-500 uppercase tracking-wider">Vitality</p>
+                  </div>
+                </div>
+                
+                {/* Main Metric */}
+                <div className="mb-4 sm:mb-6 text-center">
+                  <div className="flex items-center justify-center gap-2 mb-2">
+                    <div className="w-1 h-8 sm:h-12 bg-gradient-to-b from-[#FF7222] to-[#FF7222]/50 rounded-full"></div>
+                    <div>
+                      <h5 className="text-2xl sm:text-4xl lg:text-5xl font-[1000] italic tracking-tighter text-white group-hover:text-[#FF7222] transition-colors duration-300">
+                        {node.weight}
+                      </h5>
+                      <p className="text-[10px] sm:text-xs font-black text-gray-400 uppercase tracking-widest">KG Body Weight</p>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Metrics Grid */}
+                <div className="grid grid-cols-3 gap-2 sm:gap-3 pt-3 sm:pt-4 border-t border-white/5">
+                  <div className="text-center group/metric">
+                    <div className="flex items-center justify-center gap-1 mb-1">
+                      <div className="w-2 h-2 bg-[#10B981] rounded-full group-hover/metric:animate-pulse"></div>
+                      <p className="text-[8px] sm:text-[10px] font-bold text-gray-500 uppercase tracking-wider">Bench</p>
+                    </div>
+                    <p className="text-sm sm:text-lg font-black text-[#10B981] group-hover/metric:scale-110 transition-transform">{node.bench} KG</p>
+                  </div>
+                  
+                  <div className="text-center group/metric">
+                    <div className="flex items-center justify-center gap-1 mb-1">
+                      <div className="w-2 h-2 bg-[#F59E0B] rounded-full group-hover/metric:animate-pulse"></div>
+                      <p className="text-[8px] sm:text-[10px] font-bold text-gray-500 uppercase tracking-wider">Waist</p>
+                    </div>
+                    <p className="text-sm sm:text-lg font-black text-[#F59E0B] group-hover/metric:scale-110 transition-transform">{node.waist} CM</p>
+                  </div>
+                  
+                  <div className="text-center group/metric">
+                    <div className="flex items-center justify-center gap-1 mb-1">
+                      <div className="w-2 h-2 bg-[#3B82F6] rounded-full group-hover/metric:animate-pulse"></div>
+                      <p className="text-[8px] sm:text-[10px] font-bold text-gray-500 uppercase tracking-wider">Run</p>
+                    </div>
+                    <p className="text-sm sm:text-lg font-black text-[#3B82F6] group-hover/metric:scale-110 transition-transform">{node.run || 0} KM</p>
+                  </div>
+                </div>
+                
+                {/* Progress Bar */}
+                <div className="mt-3 sm:mt-4">
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-[8px] sm:text-[10px] font-bold text-gray-500 uppercase">Progress</span>
+                    <span className="text-[8px] sm:text-[10px] font-bold text-[#8B5CF6]">{node.score}%</span>
+                  </div>
+                  <div className="w-full bg-gray-800 rounded-full h-1.5 sm:h-2 overflow-hidden">
+                    <motion.div 
+                      initial={{ width: 0 }}
+                      animate={{ width: `${node.score}%` }}
+                      transition={{ duration: 1, delay: 0.2 }}
+                      className="h-full bg-gradient-to-r from-[#8B5CF6] via-[#FF7222] to-[#10B981] rounded-full shadow-[0_0_10px_rgba(139,92,246,0.5)]"
+                    />
+                  </div>
+                </div>
               </div>
-              <h5 className="text-4xl font-[1000] italic tracking-tighter text-white group-hover:text-[#FF7222] transition-colors">{node.weight} KG</h5>
-              <div className="mt-6 pt-6 border-t border-white/5 flex justify-between">
-                <div className="text-center"><p className="text-[8px] font-bold text-gray-600 uppercase">Bench</p><p className="font-black text-lg">{node.bench} KG</p></div>
-                <div className="text-center"><p className="text-[8px] font-bold text-gray-600 uppercase">Waist</p><p className="font-black text-lg">{node.waist} CM</p></div>
-                <div className="text-center"><p className="text-[8px] font-bold text-gray-600 uppercase">Vitality</p><p className="font-black text-lg text-[#FF7222]">{node.score}%</p></div>
-              </div>
+              
+              {/* Hover Effect Glow */}
+              <div className="absolute inset-0 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-[#FF7222]/10 via-transparent to-[#8B5CF6]/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"></div>
             </motion.div>
           ))}
-        </div>
-
-        {/* View More Button */}
-        {history.length > 4 && (
-          <div className="flex justify-center mt-8">
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => setShowAllEntries(!showAllEntries)}
-              className="flex items-center gap-3 bg-gradient-to-r from-[#FF7222]/20 to-[#FF7222]/10 border-2 border-[#FF7222]/30 hover:border-[#FF7222]/60 px-8 py-4 rounded-3xl transition-all group"
-            >
-              <span className="text-white font-black uppercase text-sm tracking-wider">
-                {showAllEntries ? 'Show Less' : `View More (${history.length - 4})`}
-              </span>
-              <motion.div
-                animate={{ rotate: showAllEntries ? 180 : 0 }}
-                transition={{ duration: 0.3 }}
-                className="text-[#FF7222] group-hover:text-white transition-colors"
-              >
-                {showAllEntries ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
-              </motion.div>
-            </motion.button>
           </div>
+        ) : (
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-center py-16"
+          >
+            <div className="bg-gradient-to-br from-gray-900/50 to-black/50 rounded-3xl p-12 border border-white/10">
+              <Calendar className="w-16 h-16 text-gray-500 mx-auto mb-4" />
+              <h3 className="text-2xl font-bold text-gray-400 mb-2">No Entries Found</h3>
+              <p className="text-gray-500">
+                {selectedDate 
+                  ? `No progress entries found for ${new Date(selectedDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })}`
+                  : 'No progress entries available'
+                }
+              </p>
+              {selectedDate && (
+                <button
+                  onClick={() => setSelectedDate('')}
+                  className="mt-4 px-6 py-2 bg-[#FF7222]/20 hover:bg-[#FF7222]/40 text-[#FF7222] rounded-xl font-bold transition-colors"
+                >
+                  Show All Entries
+                </button>
+              )}
+            </div>
+          </motion.div>
         )}
+
+        {/* View More Button - Remove this section */}
       </div>
 
       {/* EDIT MODAL */}
@@ -1665,7 +1803,7 @@ const ProgressModule = () => {
               
               <div className="flex gap-4 justify-center">
                 <button 
-                  onClick={() => deleteProgress(showDeleteConfirm.id)}
+                  onClick={() => deleteProgress(showDeleteConfirm._id)}
                   className="bg-red-500 text-white px-8 py-4 rounded-2xl font-black uppercase text-sm hover:scale-105 transition-transform"
                 >
                   Delete

@@ -29,6 +29,7 @@ const WorkoutOverview = () => {
 
   const [isAddingCat, setIsAddingCat] = useState(false);
   const [newCatName, setNewCatName] = useState('');
+  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
   const [modal, setModal] = useState({ isOpen: false, type: 'edit', data: null });
   const [confirmModal, setConfirmModal] = useState({ isOpen: false, type: 'confirm', action: null, message: '' });
   const [successModal, setSuccessModal] = useState({ isOpen: false, message: '', details: '' });
@@ -226,6 +227,37 @@ const WorkoutOverview = () => {
     }
   };
 
+  const handleDeleteCategory = async (categoryId, categoryName) => {
+    setConfirmModal({
+      isOpen: true,
+      type: 'confirm',
+      action: async () => {
+        try {
+          const result = await deleteCategory(categoryId);
+          if (result.success) {
+            // If deleted category was selected, switch to first available
+            if (modal.data.category === categoryName && categories.length > 1) {
+              const remainingCategories = categories.filter(cat => cat._id !== categoryId);
+              setModal({ ...modal, data: { ...modal.data, category: remainingCategories[0]?.name || '' } });
+            }
+            
+            setSuccessModal({
+              isOpen: true,
+              message: 'CATEGORY DELETED',
+              details: `"${categoryName}" has been removed from the system`
+            });
+          } else {
+            setError(result.message || 'Failed to delete category');
+          }
+        } catch (error) {
+          console.error('Category deletion error:', error);
+          setError('Failed to delete category. Please try again.');
+        }
+      },
+      message: `Permanently delete category "${categoryName}"? All drills in this category will need to be reassigned.`
+    });
+  };
+
   const openModal = (type, data = null) => {
     setModal({
       isOpen: true,
@@ -397,9 +429,44 @@ const WorkoutOverview = () => {
                         <button onClick={addNewCategory} className="bg-[#FF7222] text-black px-4 rounded-xl"><Check size={18}/></button>
                       </div>
                     ) : (
-                      <select value={modal.data.category} onChange={(e) => setModal({ ...modal, data: { ...modal.data, category: e.target.value }})} className="w-full bg-white/[0.03] border border-white/10 rounded-xl p-5 text-[10px] font-black uppercase text-white outline-none">
-                        {categories.map(cat => <option key={cat._id} value={cat.name} className="bg-[#111]">{cat.name}</option>)}
-                      </select>
+                      <div className="relative">
+                        <div 
+                          onClick={() => setShowCategoryDropdown(!showCategoryDropdown)}
+                          className="w-full bg-white/[0.03] border border-white/10 rounded-xl p-5 text-[10px] font-black uppercase text-white outline-none cursor-pointer flex items-center justify-between"
+                        >
+                          <span>{modal.data.category}</span>
+                          <ChevronDown className={`text-gray-500 transition-transform ${showCategoryDropdown ? 'rotate-180' : ''}`} size={16} />
+                        </div>
+                        
+                        {/* Category Management Dropdown */}
+                        {showCategoryDropdown && (
+                          <div className="absolute top-full left-0 right-0 mt-2 bg-[#111] border border-white/10 rounded-xl overflow-hidden z-50 max-h-48 overflow-y-auto">
+                            {categories.map(cat => (
+                              <div key={cat._id} className="flex items-center justify-between p-3 hover:bg-white/5 group">
+                                <button
+                                  onClick={() => {
+                                    setModal({ ...modal, data: { ...modal.data, category: cat.name } });
+                                    setShowCategoryDropdown(false);
+                                  }}
+                                  className="flex-1 text-left text-[10px] font-black uppercase text-white"
+                                >
+                                  {cat.name}
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteCategory(cat._id, cat.name);
+                                  }}
+                                  className="opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-400 transition-all p-1 rounded ml-2"
+                                  title={`Delete ${cat.name}`}
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     )}
                   </div>
                   <div className="grid grid-cols-2 gap-4">

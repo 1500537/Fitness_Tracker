@@ -379,7 +379,7 @@ export const updateCategory = async (req, res) => {
     }
 };
 
-// Delete category (soft delete)
+// Delete category (hard delete)
 export const deleteCategory = async (req, res) => {
     try {
         const { id } = req.params;
@@ -387,10 +387,6 @@ export const deleteCategory = async (req, res) => {
         const category = await Category.findById(id);
         if (!category) {
             return res.json({ success: false, message: 'Category not found' });
-        }
-
-        if (!category.isActive) {
-            return res.json({ success: false, message: 'Category is already deleted' });
         }
 
         // Check if category is being used by active drills
@@ -406,14 +402,8 @@ export const deleteCategory = async (req, res) => {
             });
         }
 
-        // Soft delete
-        category.isActive = false;
-        await category.save();
-
-        // Emit real-time update
-        if (req.io) {
-            req.io.to('categories').emit('categoryDeleted', id);
-        }
+        // Hard delete from database
+        await Category.findByIdAndDelete(id);
 
         res.json({
             success: true,

@@ -62,9 +62,16 @@ const calculateVitalityScore = (data) => {
 export const getProgress = async (req, res) => {
     try {
         const userId = req.user._id;
-        const progress = await Progress.find({ userId }).sort({ date: -1 });
+
+        
+        // Search for ALL progress entries for this specific user
+        const progress = await Progress.find({ userId: userId }).sort({ createdAt: -1 }).lean();
+
+        
+
         res.json({ success: true, progress });
     } catch (error) {
+        console.error('Error fetching progress:', error);
         res.json({ success: false, message: error.message });
     }
 };
@@ -74,6 +81,9 @@ export const addProgress = async (req, res) => {
     try {
         const userId = req.user._id;
         const { date, weight, bench, run, waist, neck, height } = req.body;
+
+        console.log('Adding progress entry for user:', userId);
+        console.log('Request body:', req.body);
 
         // Validation with realistic human ranges
         const weightNum = parseFloat(weight);
@@ -122,11 +132,16 @@ export const addProgress = async (req, res) => {
         const progress = new Progress(progressData);
         await progress.save();
         
+        console.log('Created new progress entry:', progress._id);
+        
         // Emit real-time update to user's progress room
-        req.io.to(`progress-${userId}`).emit('progress-added', progress);
+        if (req.io) {
+            req.io.to(`progress-${userId}`).emit('progress-added', progress);
+        }
         
         res.json({ success: true, progress });
     } catch (error) {
+        console.error('Error adding progress:', error);
         res.json({ success: false, message: error.message });
     }
 };
@@ -137,6 +152,9 @@ export const updateProgress = async (req, res) => {
         const userId = req.user._id;
         const { id } = req.params;
         
+        console.log('Updating progress entry:', id, 'for user:', userId);
+        console.log('Update data:', req.body);
+        
         // Recalculate score if metrics are being updated
         const updateData = { ...req.body };
         if (updateData.weight || updateData.bench || updateData.run || updateData.waist || updateData.neck || updateData.height) {
@@ -144,14 +162,15 @@ export const updateProgress = async (req, res) => {
             const currentProgress = await Progress.findOne({ _id: id, userId });
             if (currentProgress) {
                 const updatedData = {
-                    weight: updateData.weight || currentProgress.weight,
-                    bench: updateData.bench || currentProgress.bench,
-                    run: updateData.run || currentProgress.run,
-                    waist: updateData.waist || currentProgress.waist,
-                    neck: updateData.neck || currentProgress.neck,
-                    height: updateData.height || currentProgress.height
+                    weight: parseFloat(updateData.weight) || currentProgress.weight,
+                    bench: parseFloat(updateData.bench) || currentProgress.bench,
+                    run: parseFloat(updateData.run) || currentProgress.run,
+                    waist: parseFloat(updateData.waist) || currentProgress.waist,
+                    neck: parseFloat(updateData.neck) || currentProgress.neck,
+                    height: parseFloat(updateData.height) || currentProgress.height
                 };
                 updateData.score = calculateVitalityScore(updatedData);
+                console.log('Recalculated score:', updateData.score);
             }
         }
         
@@ -160,15 +179,22 @@ export const updateProgress = async (req, res) => {
             updateData,
             { new: true }
         );
+        
         if (!progress) {
+            console.log('Progress entry not found:', id);
             return res.json({ success: false, message: "Progress entry not found" });
         }
         
+        console.log('Successfully updated progress entry:', progress._id);
+        
         // Emit real-time update to user's progress room
-        req.io.to(`progress-${userId}`).emit('progress-updated', progress);
+        if (req.io) {
+            req.io.to(`progress-${userId}`).emit('progress-updated', progress);
+        }
         
         res.json({ success: true, progress });
     } catch (error) {
+        console.error('Error updating progress:', error);
         res.json({ success: false, message: error.message });
     }
 };
@@ -178,16 +204,25 @@ export const deleteProgress = async (req, res) => {
     try {
         const userId = req.user._id;
         const { id } = req.params;
+        
+        console.log('Deleting progress entry:', id, 'for user:', userId);
+        
         const progress = await Progress.findOneAndDelete({ _id: id, userId });
         if (!progress) {
+            console.log('Progress entry not found:', id);
             return res.json({ success: false, message: "Progress entry not found" });
         }
         
+        console.log('Successfully deleted progress entry:', id);
+        
         // Emit real-time update to user's progress room
-        req.io.to(`progress-${userId}`).emit('progress-deleted', { id });
+        if (req.io) {
+            req.io.to(`progress-${userId}`).emit('progress-deleted', { id });
+        }
         
         res.json({ success: true, message: "Progress entry deleted" });
     } catch (error) {
+        console.error('Error deleting progress:', error);
         res.json({ success: false, message: error.message });
     }
 };
