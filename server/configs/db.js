@@ -26,7 +26,8 @@ const connectDB = async () => {
             maxPoolSize: 10,
             minPoolSize: 5,
             retryWrites: true,
-            retryReads: true
+            retryReads: true,
+            tlsAllowInvalidCertificates: true
         });
 
         isConnected = db.connections[0].readyState;
