@@ -15,14 +15,19 @@ const connectDB = async () => {
     try {
         // Mongoose settings
         mongoose.set('strictQuery', true);
+        mongoose.set('bufferCommands', false);
+        mongoose.set('bufferMaxEntries', 0);
 
         // Connection process
         const db = await mongoose.connect(process.env.MONGODB_URI, {
             dbName: "TrackForce",
             serverSelectionTimeoutMS: 30000,
             socketTimeoutMS: 45000,
+            connectTimeoutMS: 30000,
             maxPoolSize: 10,
-            minPoolSize: 5
+            minPoolSize: 5,
+            retryWrites: true,
+            retryReads: true
         });
 
         isConnected = db.connections[0].readyState;
