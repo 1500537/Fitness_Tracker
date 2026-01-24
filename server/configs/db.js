@@ -16,7 +16,6 @@ const connectDB = async () => {
         // Mongoose settings
         mongoose.set('strictQuery', true);
         mongoose.set('bufferCommands', false);
-        mongoose.set('bufferMaxEntries', 0);
 
         // Connection process
         const db = await mongoose.connect(process.env.MONGODB_URI, {
@@ -35,7 +34,8 @@ const connectDB = async () => {
 
     } catch (error) {
         console.error("MongoDB Connection Error:", error.message);
-        process.exit(1);
+        isConnected = false;
+        throw error;
     }
 };
 
