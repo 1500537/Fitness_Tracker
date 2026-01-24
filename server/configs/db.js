@@ -18,7 +18,11 @@ const connectDB = async () => {
 
         // Connection process
         const db = await mongoose.connect(process.env.MONGODB_URI, {
-            dbName: "TrackForce", // DB name yahan specify karna zyada behtar hai
+            dbName: "TrackForce",
+            serverSelectionTimeoutMS: 30000,
+            socketTimeoutMS: 45000,
+            maxPoolSize: 10,
+            minPoolSize: 5
         });
 
         isConnected = db.connections[0].readyState;
@@ -26,7 +30,7 @@ const connectDB = async () => {
 
     } catch (error) {
         console.error("MongoDB Connection Error:", error.message);
-        // Error par crash na ho balki log kare
+        process.exit(1);
     }
 };
 
