@@ -103,7 +103,6 @@ export const AppProvider = ({ children }) => {
   useEffect(() => {
     // Socket.IO disabled via environment variable
     if (!isSocketEnabled) {
-      console.log('Socket.IO disabled via environment variable');
       return;
     }
 
@@ -121,7 +120,6 @@ export const AppProvider = ({ children }) => {
         setSocket(newSocket);
 
         newSocket.on('connect', () => {
-          console.log('Socket connected');
           newSocket.emit('join-user-room', userId);
         });
 
@@ -142,12 +140,11 @@ export const AppProvider = ({ children }) => {
         });
 
         newSocket.on('connect_error', (error) => {
-          console.log('Socket connection error:', error.message);
           newSocket.disconnect();
         });
 
         newSocket.on('disconnect', (reason) => {
-          console.log('Socket disconnected:', reason);
+          // Socket disconnected
         });
 
         return () => {
@@ -156,7 +153,6 @@ export const AppProvider = ({ children }) => {
           }
         };
       } catch (error) {
-        console.log('Socket initialization error:', error.message);
         if (newSocket) {
           newSocket.disconnect();
         }
@@ -396,10 +392,6 @@ export const AppProvider = ({ children }) => {
   // Fetch progress entries
   const fetchProgress = async () => {
     if (!userId) return;
-
-    console.log('=== FRONTEND PROGRESS FETCH ===');
-    console.log('Current logged in user ID:', userId);
-    console.log('User ID type:', typeof userId);
     
     setLoading(true);
     try {
@@ -411,28 +403,18 @@ export const AppProvider = ({ children }) => {
       });
 
       const data = await response.json();
-      console.log('Response from backend:', {
-        success: data.success,
-        totalEntries: data.progress?.length || 0,
-        message: data.message
-      });
       
       if (data.success) {
-        console.log('ALL PROGRESS DATA FOR USER:', data.progress);
         const allProgress = data.progress.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-        console.log('Setting progress state with', allProgress.length, 'entries');
         setProgress(allProgress);
       } else {
-        console.error('Backend returned error:', data.message);
         setError(data.message);
       }
     } catch (err) {
-      console.error('Network error:', err);
       setError(err.message);
     } finally {
       setLoading(false);
     }
-    console.log('=== END FRONTEND FETCH ===');
   };
 
   // Fetch goals
@@ -647,8 +629,6 @@ export const AppProvider = ({ children }) => {
   const addProgressEntry = async (progressData) => {
     if (!userId) return null;
 
-    console.log('Frontend: Adding progress entry:', progressData);
-
     try {
       const response = await fetch(`${API_BASE}/progress`, {
         method: 'POST',
@@ -660,29 +640,23 @@ export const AppProvider = ({ children }) => {
       });
 
       const data = await response.json();
-      console.log('Frontend: Add progress response:', data);
       
       if (data.success) {
         // If socket is disabled, update state immediately
         if (!isSocketEnabled) {
-          console.log('Frontend: Updating state immediately (socket disabled)');
           setProgress(prev => {
-            console.log('Frontend: Previous progress count:', prev.length);
             // Remove any duplicate and add new entry at the beginning
             const filtered = prev.filter(p => p._id !== data.progress._id);
             const newProgress = [data.progress, ...filtered].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-            console.log('Frontend: New progress count:', newProgress.length);
             return newProgress;
           });
         }
         return data.progress;
       } else {
-        console.error('Frontend: Add progress failed:', data.message);
         setError(data.message);
         return null;
       }
     } catch (err) {
-      console.error('Frontend: Add progress error:', err);
       setError(err.message);
       return null;
     }
@@ -720,8 +694,6 @@ export const AppProvider = ({ children }) => {
   const updateProgressEntry = async (id, progressData) => {
     if (!userId) return null;
 
-    console.log('Frontend: Updating progress entry:', id, 'with data:', progressData);
-
     try {
       const response = await fetch(`${API_BASE}/progress/${id}`, {
         method: 'PUT',
@@ -733,27 +705,22 @@ export const AppProvider = ({ children }) => {
       });
 
       const data = await response.json();
-      console.log('Frontend: Update progress response:', data);
       
       if (data.success) {
         // If socket is disabled, update state immediately
         if (!isSocketEnabled) {
-          console.log('Frontend: Updating state immediately (socket disabled)');
           setProgress(prev => {
             const updated = prev.map(p => p._id === id ? data.progress : p)
               .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-            console.log('Frontend: Progress updated in state');
             return updated;
           });
         }
         return data.progress;
       } else {
-        console.error('Frontend: Update progress failed:', data.message);
         setError(data.message);
         return null;
       }
     } catch (err) {
-      console.error('Frontend: Update progress error:', err);
       setError(err.message);
       return null;
     }
@@ -762,8 +729,6 @@ export const AppProvider = ({ children }) => {
   // Delete progress entry
   const deleteProgressEntry = async (id) => {
     if (!userId) return null;
-
-    console.log('Frontend: Deleting progress entry:', id);
 
     try {
       const response = await fetch(`${API_BASE}/progress/${id}`, {
@@ -775,26 +740,21 @@ export const AppProvider = ({ children }) => {
       });
 
       const data = await response.json();
-      console.log('Frontend: Delete progress response:', data);
       
       if (data.success) {
         // If socket is disabled, update state immediately
         if (!isSocketEnabled) {
-          console.log('Frontend: Removing from state immediately (socket disabled)');
           setProgress(prev => {
             const filtered = prev.filter(p => p._id !== id);
-            console.log('Frontend: Progress count after delete:', filtered.length);
             return filtered;
           });
         }
         return true;
       } else {
-        console.error('Frontend: Delete progress failed:', data.message);
         setError(data.message);
         return false;
       }
     } catch (err) {
-      console.error('Frontend: Delete progress error:', err);
       setError(err.message);
       return false;
     }

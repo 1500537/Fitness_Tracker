@@ -5,6 +5,26 @@ import ErrorBoundary from '../components/ErrorBoundary';
 import { useUser } from '@clerk/clerk-react';
 import { Crown, Star, Zap } from 'lucide-react';
 
+// Network connectivity hook
+const useNetworkStatus = () => {
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+  
+  return isOnline;
+};
+
 const TestimonialPricing = () => {
   const { plans, plansLoading, fetchPlans, error, user } = useAppContext();
   const { user: clerkUser } = useUser();
@@ -12,6 +32,8 @@ const TestimonialPricing = () => {
   const [isVisible, setIsVisible] = useState(false);
   const [billingCycle, setBillingCycle] = useState('monthly');
   const hasFetched = useRef(false);
+  const isOnline = useNetworkStatus();
+  const [wasOffline, setWasOffline] = useState(false);
 
   const userTier = user?.pricing || 'starter';
   const tierIcons = { starter: Zap, pro: Crown, elite: Star };
@@ -24,6 +46,14 @@ const TestimonialPricing = () => {
       hasFetched.current = true;
     }
   }, [fetchPlans]);
+
+  // Auto-refresh when connection is restored
+  useEffect(() => {
+    if (isOnline && wasOffline) {
+      window.location.reload();
+    }
+    setWasOffline(!isOnline);
+  }, [isOnline, wasOffline]);
 
   const handleSubscribe = async (plan) => {
     if (!clerkUser) {

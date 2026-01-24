@@ -14,14 +14,14 @@ const router = express.Router();
 // All routes require authentication
 router.use(protect);
 
+// Goals (must come before /:id routes)
+router.get('/goals', getGoals);
+router.put('/goals', updateGoals);
+
 // Progress entries
 router.get('/', getProgress);
 router.post('/', addProgress);
 router.put('/:id', updateProgress);
 router.delete('/:id', deleteProgress);
-
-// Goals
-router.get('/goals', getGoals);
-router.put('/goals', updateGoals);
 
 export default router;
